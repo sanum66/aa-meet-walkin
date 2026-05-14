@@ -2,6 +2,50 @@ import streamlit as st
 import pandas as pd
 
 
+# ---------------------------------------------------
+# DEPARTMENT SHORT NAME MAPPING
+# ---------------------------------------------------
+
+def get_department_short_name(department):
+
+    mapping = {
+
+        "Mechanical Engineering": "MECH",
+
+        "Electronics & Communication Engineering": "ECE",
+
+        "Automobile Engineering": "AUTO",
+
+        "Civil Engineering": "CIVIL",
+
+        "Civil Engineering + Transportation Engineering": "CTRANS",
+
+        "Civil and Transportation Engineering": "CTRANS",
+
+        "Transportation Engineering": "CTRANS",
+
+        "Electrical & Electronics Engineering": "EEE",
+
+        "Computer Science Engineering": "CSE",
+
+        "Information Technology": "IT",
+
+        "Master of Computer Applications": "MCA",
+
+        "MCA": "MCA"
+
+    }
+
+    return mapping.get(
+        str(department).strip(),
+        str(department).strip()
+    )
+
+
+# ---------------------------------------------------
+# IMPORT PAGE
+# ---------------------------------------------------
+
 def render_import_page(db):
 
     st.title("Import Pre-Registered Alumni")
@@ -15,10 +59,37 @@ def render_import_page(db):
 
         try:
 
+            # -----------------------------------------
+            # READ EXCEL
+            # -----------------------------------------
+
             df = pd.read_excel(
                 uploaded_file,
                 sheet_name="Input"
             )
+
+            # -----------------------------------------
+            # REMOVE EMPTY ROWS & COLUMNS
+            # -----------------------------------------
+
+            df = df.dropna(
+                how="all"
+            )
+
+            df = df.dropna(
+                axis=1,
+                how="all"
+            )
+
+            # -----------------------------------------
+            # REPLACE NaN
+            # -----------------------------------------
+
+            df = df.fillna("")
+
+            # -----------------------------------------
+            # PREVIEW
+            # -----------------------------------------
 
             st.subheader("Preview")
 
@@ -28,8 +99,12 @@ def render_import_page(db):
             )
 
             st.info(
-                f"Total Records Found: {len(df)}"
+                f"Total Clean Records Found: {len(df)}"
             )
+
+            # -----------------------------------------
+            # IMPORT BUTTON
+            # -----------------------------------------
 
             if st.button("Import All Records"):
 
@@ -39,97 +114,163 @@ def render_import_page(db):
 
                 for _, row in df.iterrows():
 
-                    mobile = str(
-                        row.get("Mobile", "")
-                    ).strip()
+                    try:
 
-                    if mobile == "" or mobile == "nan":
-                        failed += 1
-                        continue
+                        # ---------------------------------
+                        # MOBILE CLEANUP
+                        # ---------------------------------
 
-                    attendee = {
+                        mobile_raw = row.get(
+                            "Mobile",
+                            ""
+                        )
 
-                        "name": str(
-                            row.get("Name", "")
-                        ),
+                        if mobile_raw == "":
 
-                        "course": str(
-                            row.get("Course", "")
-                        ),
+                            failed += 1
 
-                        "stream": str(
+                            continue
+
+                        mobile = str(
+                            int(float(mobile_raw))
+                        ).strip()
+
+                        # ---------------------------------
+                        # BATCH CLEANUP
+                        # ---------------------------------
+
+                        batch_raw = row.get(
+                            "Year",
+                            ""
+                        )
+
+                        batch_year = ""
+
+                        if batch_raw != "":
+
+                            batch_year = str(
+                                int(float(batch_raw))
+                            )
+
+                        # ---------------------------------
+                        # DEPARTMENT SHORT NAME
+                        # ---------------------------------
+
+                        department = get_department_short_name(
                             row.get("Stream", "")
-                        ),
+                        )
 
-                        "batch_year": str(
-                            row.get("Year", "")
-                        ),
+                        # ---------------------------------
+                        # FAMILY MEMBERS
+                        # ---------------------------------
 
-                        "email": str(
-                            row.get("Email", "")
-                        ),
+                        family_members = 0
 
-                        "mobile": mobile,
+                        family_raw = row.get(
+                            "Number of Accompanying Family Members",
+                            0
+                        )
 
-                        "city": "",
+                        if family_raw != "":
 
-                        "company": "",
+                            try:
 
-                        "status": str(
-                            row.get("Status", "")
-                        ),
+                                family_members = int(
+                                    float(family_raw)
+                                )
 
-                        "food_preference": str(
-                            row.get(
-                                "Your Food Preference?",
-                                ""
-                            )
-                        ),
+                            except:
 
-                        "family_members": int(
-                            row.get(
-                                "Number of Accompanying Family Members",
-                                0
-                            )
-                        ) if pd.notna(
-                            row.get(
-                                "Number of Accompanying Family Members",
-                                0
-                            )
-                        ) else 0,
+                                family_members = 0
 
-                        "gender": str(
-                            row.get("Gender", "")
-                        ),
+                        # ---------------------------------
+                        # ATTENDEE OBJECT
+                        # ---------------------------------
 
-                        "branch": str(
-                            row.get("Branch", "")
-                        ),
+                        attendee = {
 
-                        "proper_name": str(
-                            row.get("Proper Name", "")
-                        ),
+                            "name": str(
+                                row.get("Name", "")
+                            ).strip(),
 
-                        "registration_type": "Pre-Registered",
+                            "course": str(
+                                row.get("Course", "")
+                            ).strip(),
 
-                        "payment_status": "Paid",
+                            "stream": department,
 
-                        "payment_mode": "Online",
+                            "batch_year": batch_year,
 
-                        "amount_paid": 0,
+                            "email": str(
+                                row.get("Email", "")
+                            ).strip(),
 
-                        "remarks": ""
+                            "mobile": mobile,
 
-                    }
+                            "city": "",
 
-                    result = db.insert_attendee(
-                        attendee
-                    )
+                            "company": "",
 
-                    if result:
-                        success += 1
-                    else:
-                        duplicate += 1
+                            "status": str(
+                                row.get("Status", "")
+                            ).strip(),
+
+                            "food_preference": str(
+                                row.get(
+                                    "Your Food Preference?",
+                                    ""
+                                )
+                            ).strip(),
+
+                            "family_members": family_members,
+
+                            "gender": str(
+                                row.get("Gender", "")
+                            ).strip(),
+
+                            "branch": str(
+                                row.get("Branch", "")
+                            ).strip(),
+
+                            "proper_name": str(
+                                row.get("Proper Name", "")
+                            ).strip(),
+
+                            "registration_type": "Pre-Registered",
+
+                            "payment_status": "Paid",
+
+                            "payment_mode": "Online",
+
+                            "amount_paid": 0,
+
+                            "remarks": ""
+
+                        }
+
+                        # ---------------------------------
+                        # INSERT TO DATABASE
+                        # ---------------------------------
+
+                        result = db.insert_attendee(
+                            attendee
+                        )
+
+                        if result:
+
+                            success += 1
+
+                        else:
+
+                            duplicate += 1
+
+                    except Exception:
+
+                        failed += 1
+
+                # -----------------------------------------
+                # SUMMARY
+                # -----------------------------------------
 
                 st.success(
                     f"Successfully Imported: {success}"

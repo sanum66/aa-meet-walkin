@@ -5,218 +5,627 @@ import secrets
 from datetime import datetime
 
 from dotenv import load_dotenv
+from supabase_client import supabase
 
 load_dotenv()
 
-DB_PATH = os.getenv("DB_PATH", os.path.join(os.path.dirname(__file__), "data", "registrations.db"))
-DEFAULT_ADMIN = os.getenv("ADMIN_USER", "admin")
-DEFAULT_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
+DB_PATH = os.getenv(
+    "DB_PATH",
+    os.path.join(
+        os.path.dirname(__file__),
+        "data",
+        "registrations.db"
+    )
+)
+
+DEFAULT_ADMIN = os.getenv(
+    "ADMIN_USER",
+    "admin"
+)
+
+DEFAULT_PASSWORD = os.getenv(
+    "ADMIN_PASSWORD",
+    "admin123"
+)
 
 
 class Database:
+
     def __init__(self):
+
         self.db_path = DB_PATH
+
         self._ensure_data_dir()
-        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
+
+        self.conn = sqlite3.connect(
+            self.db_path,
+            check_same_thread=False
+        )
+
         self.conn.row_factory = sqlite3.Row
+
         self.create_tables()
 
+    # ---------------------------------------------------
+    # LOCAL SQLITE FOR LOGIN USERS ONLY
+    # ---------------------------------------------------
+
     def _ensure_data_dir(self):
-        directory = os.path.dirname(self.db_path)
+
+        directory = os.path.dirname(
+            self.db_path
+        )
+
         if directory and not os.path.exists(directory):
-            os.makedirs(directory, exist_ok=True)
+
+            os.makedirs(
+                directory,
+                exist_ok=True
+            )
 
     def create_tables(self):
+
         cursor = self.conn.cursor()
+
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS users (
+
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+
                 username TEXT UNIQUE NOT NULL,
+
                 password_hash TEXT NOT NULL,
+
                 role TEXT NOT NULL,
+
                 created_at TEXT NOT NULL
+
             )
             """
         )
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS attendees (
-                attendee_id TEXT PRIMARY KEY,
-                full_name TEXT NOT NULL,
-                batch_year TEXT NOT NULL,
-                department TEXT NOT NULL,
-                mobile TEXT UNIQUE NOT NULL,
-                email TEXT,
-                city TEXT,
-                company TEXT,
-                registration_type TEXT NOT NULL,
-                payment_status TEXT NOT NULL,
-                payment_mode TEXT,
-                amount_paid REAL DEFAULT 0,
-                food_preference TEXT,
-                remarks TEXT,
-                created_at TEXT NOT NULL,
-                checked_in INTEGER DEFAULT 0,
-                checked_in_at TEXT,
-                qr_code_path TEXT
-            )
-            """
-        )
+
         self.conn.commit()
 
-    def execute(self, query, params=None, commit=False):
+    # ---------------------------------------------------
+    # SQLITE EXECUTE
+    # ---------------------------------------------------
+
+    def execute(
+        self,
+        query,
+        params=None,
+        commit=False
+    ):
+
         params = params or []
+
         cursor = self.conn.cursor()
-        cursor.execute(query, params)
-        if commit:
-            self.conn.commit()
-        return cursor
 
-    def user_exists(self, username):
-        cursor = self.execute("SELECT 1 FROM users WHERE username = ?", [username])
-        return cursor.fetchone() is not None
-
-    def create_user(self, username, password, role="admin"):
-        password_hash = self.hash_password(password)
-        created_at = datetime.utcnow().isoformat()
-        self.execute(
-            "INSERT OR IGNORE INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)",
-            [username, password_hash, role, created_at],
-            commit=True,
+        cursor.execute(
+            query,
+            params
         )
 
-    def get_user(self, username):
-        cursor = self.execute("SELECT * FROM users WHERE username = ?", [username])
-        return cursor.fetchone()
+        if commit:
+            self.conn.commit()
 
-    def verify_user(self, username, password):
-        user = self.get_user(username)
-        if not user:
-            return False
-        return secrets.compare_digest(user["password_hash"], self.hash_password(password))
+        return cursor
+
+    # ---------------------------------------------------
+    # PASSWORD HASH
+    # ---------------------------------------------------
 
     @staticmethod
     def hash_password(password):
-        return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
-    def add_attendee(self, **attendee_data):
-        fields = ", ".join(attendee_data.keys())
-        placeholders = ", ".join(["?"] * len(attendee_data))
-        query = f"INSERT INTO attendees ({fields}) VALUES ({placeholders})"
-        self.execute(query, list(attendee_data.values()), commit=True)
+        return hashlib.sha256(
+            password.encode("utf-8")
+        ).hexdigest()
 
-    def update_attendee(self, attendee_id, **updates):
-        assignments = ", ".join([f"{field} = ?" for field in updates])
-        query = f"UPDATE attendees SET {assignments} WHERE attendee_id = ?"
-        self.execute(query, list(updates.values()) + [attendee_id], commit=True)
+    # ---------------------------------------------------
+    # USER MANAGEMENT
+    # ---------------------------------------------------
 
-    def delete_attendee(self, attendee_id):
-        self.execute("DELETE FROM attendees WHERE attendee_id = ?", [attendee_id], commit=True)
+    def user_exists(self, username):
 
-    def get_attendee(self, attendee_id=None, mobile=None, full_name=None):
-        if attendee_id:
-            query = "SELECT * FROM attendees WHERE attendee_id = ?"
-            params = [attendee_id]
-        elif mobile:
-            query = "SELECT * FROM attendees WHERE mobile = ?"
-            params = [mobile]
-        elif full_name:
-            query = "SELECT * FROM attendees WHERE LOWER(full_name) LIKE ?"
-            params = [f"%{full_name.lower()}%"]
-        else:
-            return None
-        cursor = self.execute(query, params)
-        return cursor.fetchone()
-
-    def search_attendees(self, search_text):
-        like_value = f"%{search_text.lower()}%"
         cursor = self.execute(
-            "SELECT * FROM attendees WHERE LOWER(full_name) LIKE ? OR mobile LIKE ? OR attendee_id LIKE ?",
-            [like_value, like_value, like_value],
+            "SELECT 1 FROM users WHERE username = ?",
+            [username]
         )
-        return cursor.fetchall()
 
-    def list_attendees(self, filters=None):
-        filters = filters or {}
-        query = "SELECT * FROM attendees"
-        clauses = []
-        params = []
-        for field, value in filters.items():
-            if value is not None and value != "All":
-                clauses.append(f"{field} = ?")
-                params.append(value)
-        if clauses:
-            query += " WHERE " + " AND ".join(clauses)
-        query += " ORDER BY created_at DESC"
-        cursor = self.execute(query, params)
-        return cursor.fetchall()
-
-    def mark_checked_in(self, attendee_id):
-        self.update_attendee(attendee_id, checked_in=1, checked_in_at=datetime.utcnow().isoformat())
-
-    def duplicate_mobile_exists(self, mobile):
-        cursor = self.execute("SELECT 1 FROM attendees WHERE mobile = ?", [mobile])
         return cursor.fetchone() is not None
 
-    def get_metrics(self):
-        result = {
-            "total": 0,
-            "walk_in": 0,
-            "pre_registered": 0,
-            "paid": 0.0,
-            "checked_in": 0,
-        }
-        cursor = self.execute("SELECT COUNT(*) AS total, SUM(amount_paid) AS paid, SUM(checked_in) AS checked_in FROM attendees")
-        row = cursor.fetchone()
-        if row:
-            result["total"] = row["total"] or 0
-            result["paid"] = float(row["paid"] or 0)
-            result["checked_in"] = row["checked_in"] or 0
-        cursor = self.execute(
-            "SELECT registration_type, COUNT(*) AS count FROM attendees GROUP BY registration_type"
+    def create_user(
+        self,
+        username,
+        password,
+        role="admin"
+    ):
+
+        password_hash = self.hash_password(
+            password
         )
-        for row in cursor.fetchall():
-            if row["registration_type"] == "Spot Registration":
-                result["walk_in"] = row["count"]
+
+        created_at = datetime.utcnow().isoformat()
+
+        self.execute(
+            """
+            INSERT OR IGNORE INTO users (
+
+                username,
+                password_hash,
+                role,
+                created_at
+
+            )
+            VALUES (?, ?, ?, ?)
+            """,
+            [
+                username,
+                password_hash,
+                role,
+                created_at
+            ],
+            commit=True
+        )
+
+    def get_user(self, username):
+
+        cursor = self.execute(
+            """
+            SELECT *
+            FROM users
+            WHERE username = ?
+            """,
+            [username]
+        )
+
+        return cursor.fetchone()
+
+    def verify_user(
+        self,
+        username,
+        password
+    ):
+
+        user = self.get_user(username)
+
+        if not user:
+            return False
+
+        return secrets.compare_digest(
+            user["password_hash"],
+            self.hash_password(password)
+        )
+
+    # ---------------------------------------------------
+    # INSERT ATTENDEE
+    # ---------------------------------------------------
+
+    def insert_attendee(self, data):
+
+        try:
+
+            attendee_id = (
+                f"IRTTAA-"
+                f"{secrets.token_hex(4).upper()}"
+            )
+
+            payload = {
+
+                "attendee_id": attendee_id,
+
+                "full_name": data.get(
+                    "name",
+                    ""
+                ),
+
+                "batch_year": int(
+                    data.get(
+                        "batch_year",
+                        0
+                    )
+                ) if str(
+                    data.get(
+                        "batch_year",
+                        ""
+                    )
+                ).isdigit() else None,
+
+                "department": data.get(
+                    "stream",
+                    ""
+                ),
+
+                "mobile": str(
+                    data.get(
+                        "mobile",
+                        ""
+                    )
+                ),
+
+                "email": data.get(
+                    "email",
+                    ""
+                ),
+
+                "city": data.get(
+                    "city",
+                    ""
+                ),
+
+                "company": data.get(
+                    "company",
+                    ""
+                ),
+
+                "registration_type": data.get(
+                    "registration_type",
+                    "Pre-Registered"
+                ),
+
+                "payment_status": data.get(
+                    "payment_status",
+                    "Paid"
+                ),
+
+                "payment_mode": data.get(
+                    "payment_mode",
+                    "Online"
+                ),
+
+                "amount_paid": float(
+                    data.get(
+                        "amount_paid",
+                        0
+                    )
+                ),
+
+                "food_preference": data.get(
+                    "food_preference",
+                    ""
+                ),
+
+                "remarks": data.get(
+                    "remarks",
+                    ""
+                ),
+
+                "created_at": datetime.utcnow().isoformat(),
+
+                "checked_in": False
+
+            }
+
+            supabase.table(
+                "attendees"
+            ).insert(
+                payload
+            ).execute()
+
+            return True
+
+        except Exception as e:
+
+            print(e)
+
+            return False
+
+    # ---------------------------------------------------
+    # GET SINGLE ATTENDEE
+    # ---------------------------------------------------
+
+    def get_attendee(
+        self,
+        attendee_id=None,
+        mobile=None,
+        full_name=None
+    ):
+
+        try:
+
+            query = supabase.table(
+                "attendees"
+            ).select("*")
+
+            if attendee_id:
+
+                response = query.eq(
+                    "attendee_id",
+                    attendee_id
+                ).execute()
+
+            elif mobile:
+
+                response = query.eq(
+                    "mobile",
+                    mobile
+                ).execute()
+
+            elif full_name:
+
+                response = query.ilike(
+                    "full_name",
+                    f"%{full_name}%"
+                ).execute()
+
             else:
-                result["pre_registered"] = row["count"]
+
+                return None
+
+            if response.data:
+
+                return response.data[0]
+
+            return None
+
+        except Exception as e:
+
+            print(e)
+
+            return None
+
+    # ---------------------------------------------------
+    # GET ALL ATTENDEES
+    # ---------------------------------------------------
+
+    def get_all_attendees(self):
+
+        try:
+
+            response = supabase.table(
+                "attendees"
+            ).select("*").order(
+                "created_at",
+                desc=True
+            ).execute()
+
+            return response.data
+
+        except Exception as e:
+
+            print(e)
+
+            return []
+
+    # ---------------------------------------------------
+    # SEARCH ATTENDEES
+    # ---------------------------------------------------
+
+    def search_attendees(
+        self,
+        search_text
+    ):
+
+        try:
+
+            response = supabase.table(
+                "attendees"
+            ).select("*").or_(
+
+                f"full_name.ilike.%{search_text}%,"
+
+                f"mobile.ilike.%{search_text}%,"
+
+                f"attendee_id.ilike.%{search_text}%"
+
+            ).execute()
+
+            return response.data
+
+        except Exception as e:
+
+            print(e)
+
+            return []
+
+    # ---------------------------------------------------
+    # MARK CHECK-IN
+    # ---------------------------------------------------
+
+    def mark_checked_in(
+        self,
+        attendee_id
+    ):
+
+        try:
+
+            supabase.table(
+                "attendees"
+            ).update({
+
+                "checked_in": True,
+
+                "checked_in_at":
+                datetime.utcnow().isoformat()
+
+            }).eq(
+                "attendee_id",
+                attendee_id
+            ).execute()
+
+        except Exception as e:
+
+            print(e)
+
+    # ---------------------------------------------------
+    # DASHBOARD METRICS
+    # ---------------------------------------------------
+
+    def get_metrics(self):
+
+        attendees = self.get_all_attendees()
+
+        result = {
+
+            "total": len(attendees),
+
+            "walk_in": 0,
+
+            "pre_registered": 0,
+
+            "paid": 0,
+
+            "checked_in": 0,
+
+        }
+
+        for attendee in attendees:
+
+            if attendee.get(
+                "registration_type"
+            ) == "Walk-In":
+
+                result["walk_in"] += 1
+
+            else:
+
+                result["pre_registered"] += 1
+
+            result["paid"] += float(
+                attendee.get(
+                    "amount_paid",
+                    0
+                ) or 0
+            )
+
+            if attendee.get(
+                "checked_in"
+            ):
+
+                result["checked_in"] += 1
+
         return result
 
+    # ---------------------------------------------------
+    # ANALYTICS BY BATCH
+    # ---------------------------------------------------
+
     def analytics_by_batch(self):
-        cursor = self.execute(
-            "SELECT batch_year AS category, COUNT(*) AS count FROM attendees GROUP BY batch_year ORDER BY batch_year"
-        )
-        return cursor.fetchall()
+
+        attendees = self.get_all_attendees()
+
+        summary = {}
+
+        for attendee in attendees:
+
+            batch = str(
+                attendee.get(
+                    "batch_year",
+                    "Unknown"
+                )
+            )
+
+            summary[batch] = (
+                summary.get(batch, 0) + 1
+            )
+
+        return [
+
+            {
+                "category": key,
+                "count": value
+            }
+
+            for key, value in summary.items()
+
+        ]
+
+    # ---------------------------------------------------
+    # ANALYTICS BY DEPARTMENT
+    # ---------------------------------------------------
 
     def analytics_by_department(self):
-        cursor = self.execute(
-            "SELECT department AS category, COUNT(*) AS count FROM attendees GROUP BY department ORDER BY count DESC"
-        )
-        return cursor.fetchall()
+
+        attendees = self.get_all_attendees()
+
+        summary = {}
+
+        for attendee in attendees:
+
+            dept = attendee.get(
+                "department",
+                "Unknown"
+            )
+
+            summary[dept] = (
+                summary.get(dept, 0) + 1
+            )
+
+        return [
+
+            {
+                "category": key,
+                "count": value
+            }
+
+            for key, value in summary.items()
+
+        ]
+
+    # ---------------------------------------------------
+    # ANALYTICS BY DATE
+    # ---------------------------------------------------
 
     def analytics_by_date(self):
-        cursor = self.execute(
-            "SELECT DATE(created_at) AS day, COUNT(*) AS count FROM attendees GROUP BY DATE(created_at) ORDER BY day"
-        )
-        return cursor.fetchall()
+
+        attendees = self.get_all_attendees()
+
+        summary = {}
+
+        for attendee in attendees:
+
+            created_at = attendee.get(
+                "created_at",
+                ""
+            )
+
+            if created_at:
+
+                day = created_at[:10]
+
+                summary[day] = (
+                    summary.get(day, 0) + 1
+                )
+
+        return [
+
+            {
+                "day": key,
+                "count": value
+            }
+
+            for key, value in summary.items()
+
+        ]
+
+    # ---------------------------------------------------
+    # DELETE ATTENDEE
+    # ---------------------------------------------------
+
+    def delete_attendee(
+        self,
+        attendee_id
+    ):
+
+        try:
+
+            supabase.table(
+                "attendees"
+            ).delete().eq(
+                "attendee_id",
+                attendee_id
+            ).execute()
+
+        except Exception as e:
+
+            print(e)
+
+    # ---------------------------------------------------
+    # CLOSE SQLITE
+    # ---------------------------------------------------
 
     def close(self):
+
         self.conn.close()
-def get_all_attendees(self):
-
-    conn = self.get_connection()
-
-    cursor = conn.cursor()
-
-    cursor.execute("""
-    SELECT *
-    FROM attendees
-    ORDER BY created_at DESC
-    """)
-
-    rows = cursor.fetchall()
-
-    conn.close()
-
-    return rows
