@@ -48,6 +48,10 @@ htmlcov/
 nosetests.xml
 coverage.xml
 *.cover
+
+data/
+qrcodes/
+*.db
 *.py,cover
 .hypothesis/
 .pytest_cache/
