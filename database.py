@@ -47,7 +47,7 @@ class Database:
         self.create_tables()
 
     # ---------------------------------------------------
-    # LOCAL SQLITE FOR LOGIN USERS ONLY
+    # SQLITE USERS TABLE ONLY
     # ---------------------------------------------------
 
     def _ensure_data_dir(self):
@@ -124,7 +124,7 @@ class Database:
         ).hexdigest()
 
     # ---------------------------------------------------
-    # USER MANAGEMENT
+    # USER FUNCTIONS
     # ---------------------------------------------------
 
     def user_exists(self, username):
@@ -216,8 +216,18 @@ class Database:
 
                 "attendee_id": attendee_id,
 
-                "full_name": data.get(
+                "name": data.get(
                     "name",
+                    ""
+                ),
+
+                "course": data.get(
+                    "course",
+                    ""
+                ),
+
+                "stream": data.get(
+                    "stream",
                     ""
                 ),
 
@@ -233,8 +243,8 @@ class Database:
                     )
                 ).isdigit() else None,
 
-                "department": data.get(
-                    "stream",
+                "email": data.get(
+                    "email",
                     ""
                 ),
 
@@ -245,8 +255,25 @@ class Database:
                     )
                 ),
 
-                "email": data.get(
-                    "email",
+                "status": data.get(
+                    "status",
+                    ""
+                ),
+
+                "food_preference": data.get(
+                    "food_preference",
+                    ""
+                ),
+
+                "family_members": int(
+                    data.get(
+                        "family_members",
+                        0
+                    )
+                ),
+
+                "gender": data.get(
+                    "gender",
                     ""
                 ),
 
@@ -282,11 +309,6 @@ class Database:
                     )
                 ),
 
-                "food_preference": data.get(
-                    "food_preference",
-                    ""
-                ),
-
                 "remarks": data.get(
                     "remarks",
                     ""
@@ -320,7 +342,7 @@ class Database:
         self,
         attendee_id=None,
         mobile=None,
-        full_name=None
+        name=None
     ):
 
         try:
@@ -343,11 +365,11 @@ class Database:
                     mobile
                 ).execute()
 
-            elif full_name:
+            elif name:
 
                 response = query.ilike(
-                    "full_name",
-                    f"%{full_name}%"
+                    "name",
+                    f"%{name}%"
                 ).execute()
 
             else:
@@ -404,7 +426,7 @@ class Database:
                 "attendees"
             ).select("*").or_(
 
-                f"full_name.ilike.%{search_text}%,"
+                f"name.ilike.%{search_text}%,"
 
                 f"mobile.ilike.%{search_text}%,"
 
@@ -533,7 +555,7 @@ class Database:
         ]
 
     # ---------------------------------------------------
-    # ANALYTICS BY DEPARTMENT
+    # ANALYTICS BY STREAM
     # ---------------------------------------------------
 
     def analytics_by_department(self):
@@ -544,13 +566,13 @@ class Database:
 
         for attendee in attendees:
 
-            dept = attendee.get(
-                "department",
+            stream = attendee.get(
+                "stream",
                 "Unknown"
             )
 
-            summary[dept] = (
-                summary.get(dept, 0) + 1
+            summary[stream] = (
+                summary.get(stream, 0) + 1
             )
 
         return [
@@ -599,7 +621,36 @@ class Database:
             for key, value in summary.items()
 
         ]
+    
+    # ---------------------------------------------------
+    # UPDATE ATTENDEE
+    # ---------------------------------------------------
 
+    def update_attendee(
+        self,
+        attendee_id,
+        updates
+    ):
+
+        try:
+
+            supabase.table(
+                "attendees"
+            ).update(
+                updates
+            ).eq(
+                "attendee_id",
+                attendee_id
+            ).execute()
+
+            return True
+
+        except Exception as e:
+
+            print(e)
+
+            return False
+        
     # ---------------------------------------------------
     # DELETE ATTENDEE
     # ---------------------------------------------------

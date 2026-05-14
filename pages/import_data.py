@@ -184,17 +184,42 @@ def render_import_page(db):
                                 family_members = 0
 
                         # ---------------------------------
+                        # FINAL NAME
+                        # PRIORITY:
+                        # Proper Name → Name
+                        # ---------------------------------
+
+                        proper_name = str(
+                            row.get(
+                                "Proper Name",
+                                ""
+                            )
+                        ).strip()
+
+                        actual_name = proper_name
+
+                        if actual_name == "":
+
+                            actual_name = str(
+                                row.get(
+                                    "Name",
+                                    ""
+                                )
+                            ).strip()
+
+                        # ---------------------------------
                         # ATTENDEE OBJECT
                         # ---------------------------------
 
                         attendee = {
 
-                            "name": str(
-                                row.get("Name", "")
-                            ).strip(),
+                            "name": actual_name,
 
                             "course": str(
-                                row.get("Course", "")
+                                row.get(
+                                    "Course",
+                                    ""
+                                )
                             ).strip(),
 
                             "stream": department,
@@ -202,7 +227,10 @@ def render_import_page(db):
                             "batch_year": batch_year,
 
                             "email": str(
-                                row.get("Email", "")
+                                row.get(
+                                    "Email",
+                                    ""
+                                )
                             ).strip(),
 
                             "mobile": mobile,
@@ -212,7 +240,10 @@ def render_import_page(db):
                             "company": "",
 
                             "status": str(
-                                row.get("Status", "")
+                                row.get(
+                                    "Status",
+                                    ""
+                                )
                             ).strip(),
 
                             "food_preference": str(
@@ -225,15 +256,10 @@ def render_import_page(db):
                             "family_members": family_members,
 
                             "gender": str(
-                                row.get("Gender", "")
-                            ).strip(),
-
-                            "branch": str(
-                                row.get("Branch", "")
-                            ).strip(),
-
-                            "proper_name": str(
-                                row.get("Proper Name", "")
+                                row.get(
+                                    "Gender",
+                                    ""
+                                )
                             ).strip(),
 
                             "registration_type": "Pre-Registered",
@@ -264,7 +290,9 @@ def render_import_page(db):
 
                             duplicate += 1
 
-                    except Exception:
+                    except Exception as e:
+
+                        print(e)
 
                         failed += 1
 

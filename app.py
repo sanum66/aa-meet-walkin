@@ -28,21 +28,36 @@ def main():
 
     inject_custom_css()
 
+    # ---------------------------------------------------
+    # DATABASE
+    # ---------------------------------------------------
+
     db = Database()
 
+    # ---------------------------------------------------
+    # AUTH
+    # ---------------------------------------------------
+
     auth = AuthManager(db)
+
+    # IMPORTANT
+    # CREATE DEFAULT ADMIN USER
+    auth.ensure_default_user()
 
     # ---------------------------------------------------
     # SESSION STATE
     # ---------------------------------------------------
 
     if "authenticated" not in st.session_state:
+
         st.session_state.authenticated = False
 
     if "username" not in st.session_state:
+
         st.session_state.username = None
 
     if "role" not in st.session_state:
+
         st.session_state.role = None
 
     # ---------------------------------------------------
@@ -57,6 +72,7 @@ def main():
         )
 
         if os.path.exists(logo_path):
+
             st.image(
                 logo_path,
                 width=120
