@@ -5,3 +5,4 @@ qrcode>=7.3
 Pillow>=10.0
 python-dotenv>=1.0
 altair>=5.0
+supabase>=2.0

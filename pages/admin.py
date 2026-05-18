@@ -58,18 +58,20 @@ def render_admin_panel(db: Database):
                 if submit_edit:
                     db.update_attendee(
                         attendee_id,
-                        full_name=full_name.strip().title(),
-                        batch_year=batch_year.strip(),
-                        department=department.strip().title(),
-                        mobile=mobile.strip(),
-                        email=email.strip(),
-                        city=city.strip().title(),
-                        company=company.strip().title(),
-                        payment_status=payment_status,
-                        payment_mode=payment_mode.strip(),
-                        amount_paid=float(amount_paid or 0),
-                        food_preference=food_preference.strip(),
-                        remarks=remarks.strip(),
+                        {
+                            "full_name": full_name.strip().title(),
+                            "batch_year": batch_year.strip(),
+                            "department": department.strip().title(),
+                            "mobile": mobile.strip(),
+                            "email": email.strip(),
+                            "city": city.strip().title(),
+                            "company": company.strip().title(),
+                            "payment_status": payment_status,
+                            "payment_mode": payment_mode.strip(),
+                            "amount_paid": float(amount_paid or 0),
+                            "food_preference": food_preference.strip(),
+                            "remarks": remarks.strip(),
+                        }
                     )
                     st.success("Attendee record updated successfully.")
                     st.experimental_rerun()

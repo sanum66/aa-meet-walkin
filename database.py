@@ -309,6 +309,20 @@ class Database:
                     )
                 ),
 
+                "membership_amount": float(
+                    data.get(
+                        "membership_amount",
+                        0
+                    )
+                ),
+
+                "contribution_amount": float(
+                    data.get(
+                        "contribution_amount",
+                        0
+                    )
+                ),
+
                 "remarks": data.get(
                     "remarks",
                     ""
@@ -489,6 +503,10 @@ class Database:
 
             "paid": 0,
 
+            "membership_total": 0,
+
+            "contribution_total": 0,
+
             "checked_in": 0,
 
         }
@@ -508,6 +526,20 @@ class Database:
             result["paid"] += float(
                 attendee.get(
                     "amount_paid",
+                    0
+                ) or 0
+            )
+
+            result["membership_total"] += float(
+                attendee.get(
+                    "membership_amount",
+                    0
+                ) or 0
+            )
+
+            result["contribution_total"] += float(
+                attendee.get(
+                    "contribution_amount",
                     0
                 ) or 0
             )

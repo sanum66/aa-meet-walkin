@@ -11,13 +11,14 @@ def render_dashboard_page(db):
 
     metrics = db.get_metrics()
 
-    col1, col2, col3, col4, col5 = st.columns(5)
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
 
-    col1.metric("Total Registrations", metrics["total"])
-    col2.metric("Walk-Ins", metrics["walk_in"])
-    col3.metric("Pre-Registered", metrics["pre_registered"])
-    col4.metric("Payment Collected", f"₹{metrics['paid']:.2f}")
-    col5.metric("Checked In", metrics["checked_in"])
+    col1.metric("📊 Total Registrations", metrics["total"])
+    col2.metric("🚶 Walk-Ins", metrics["walk_in"])
+    col3.metric("✅ Checked-In", metrics["checked_in"])
+    col4.metric("💳 Membership", f"₹{metrics['membership_total']:.2f}")
+    col5.metric("🎁 Contribution", f"₹{metrics['contribution_total']:.2f}")
+    col6.metric("💰 Total Collected", f"₹{metrics['paid']:.2f}")
 
     st.markdown("---")
 

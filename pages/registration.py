@@ -10,221 +10,151 @@ from constants import (
 
 from utils import (
     generate_attendee_id,
-    generate_qr_code
+    render_payment_section
 )
 
-
-# ---------------------------------------------------
-# WALK-IN REGISTRATION PAGE
-# ---------------------------------------------------
 
 def render_registration_page(db):
 
     st.header("Walk-In Registration")
 
     st.write(
-        "Register new attendees instantly "
-        "and generate QR-based entry."
+        "Register new attendees instantly and collect membership/contribution."
     )
-
-    # ---------------------------------------------------
-    # FORM
-    # ---------------------------------------------------
 
     with st.form("walkin_registration_form"):
 
-        col1, col2 = st.columns(2)
+        # Personal Information Section
+        with st.container():
+            st.subheader("📋 Personal Information")
 
-        # -----------------------------------------------
-        # LEFT
-        # -----------------------------------------------
+            col1, col2 = st.columns(2)
 
-        with col1:
+            with col1:
 
-            full_name = st.text_input(
-                "Full Name"
-            )
+                full_name = st.text_input(
+                    "Full Name *"
+                )
 
-            batch_year = st.selectbox(
-                "Batch Year",
-                BATCH_YEARS
-            )
+                batch_year = st.selectbox(
+                    "Batch Year",
+                    BATCH_YEARS
+                )
 
-            department = st.selectbox(
-                "Department",
-                DEPARTMENTS
-            )
+                department = st.selectbox(
+                    "Department",
+                    DEPARTMENTS
+                )
 
-            mobile = st.text_input(
-                "Mobile Number"
-            )
+            with col2:
 
-            email = st.text_input(
-                "Email ID"
-            )
+                mobile = st.text_input(
+                    "Mobile Number *"
+                )
 
-        # -----------------------------------------------
-        # RIGHT
-        # -----------------------------------------------
+                email = st.text_input(
+                    "Email ID"
+                )
 
-        with col2:
-
-            city = st.text_input(
-                "City"
-            )
-
-            company = st.text_input(
-                "Company / Profession"
-            )
-
-            food_preference = st.selectbox(
-                "Food Preference",
-                FOOD_PREFERENCES
-            )
-
-            payment_mode = st.selectbox(
-                "Payment Mode",
-                PAYMENT_MODES
-            )
-
-        # ---------------------------------------------------
-        # CONTRIBUTION SECTION
-        # ---------------------------------------------------
+                city = st.text_input(
+                    "City"
+                )
 
         st.markdown("---")
 
-        st.subheader("Contribution Details")
+        # Professional Information
+        with st.container():
+            st.subheader("💼 Professional Information")
 
-        contribution_amount = st.number_input(
+            col1, col2 = st.columns(2)
 
-            "Contribution Amount",
+            with col1:
 
-            min_value=0,
+                company = st.text_input(
+                    "Company / Profession"
+                )
 
-            step=100,
+                food_preference = st.selectbox(
+                    "Food Preference",
+                    FOOD_PREFERENCES
+                )
 
-            value=0
+            with col2:
 
-        )
+                payment_mode = st.selectbox(
+                    "Payment Mode",
+                    PAYMENT_MODES
+                )
 
-        membership_type = st.selectbox(
+        st.markdown("---")
 
-            "Membership",
+        # Contribution Section
+        with st.container():
+            st.subheader("💰 Contribution Details")
 
-            list(
-                MEMBERSHIP_OPTIONS.keys()
+            payment_data = render_payment_section(
+                MEMBERSHIP_OPTIONS,
+                section_key="registration"
             )
 
-        )
+            membership_amount = payment_data["membership_amount"]
+            contribution_amount = payment_data["contribution_amount"]
+            total_amount = payment_data["total_amount"]
 
-        membership_amount = MEMBERSHIP_OPTIONS[
-            membership_type
-        ]
+        st.markdown("---")
 
-        total_amount = (
+        # Remarks
+        with st.container():
+            remarks = st.text_area(
+                "Remarks",
+                height=80
+            )
 
-            contribution_amount
-            + membership_amount
+        # Submit Button
+        st.markdown("")
+        col1, col2, col3 = st.columns([1, 2, 1])
 
-        )
+        with col2:
+            submitted = st.form_submit_button(
+                "✅ Register & Check-In",
+                use_container_width=True
+            )
 
-        st.success(
-
-            f"Total Collection: ₹{total_amount}"
-
-        )
-
-        # ---------------------------------------------------
-        # REMARKS
-        # ---------------------------------------------------
-
-        remarks = st.text_area(
-            "Remarks"
-        )
-
-        # ---------------------------------------------------
-        # SUBMIT
-        # ---------------------------------------------------
-
-        submitted = st.form_submit_button(
-
-            "Register & Check-In"
-
-        )
-
-    # ---------------------------------------------------
-    # SAVE
-    # ---------------------------------------------------
-
+    # Process Registration
     if submitted:
 
-        # -----------------------------------------------
-        # VALIDATION
-        # -----------------------------------------------
-
+        # Validation
         if (
-
             not full_name.strip()
-
             or not mobile.strip()
-
         ):
 
             st.error(
-
-                "Full Name and Mobile "
-                "are mandatory."
-
+                "❌ Full Name and Mobile Number are mandatory."
             )
 
             return
 
-        # -----------------------------------------------
-        # DUPLICATE MOBILE CHECK
-        # -----------------------------------------------
-
+        # Check for duplicate mobile
         existing = db.get_attendee(
-
             mobile=mobile.strip()
-
         )
 
         if existing:
 
             st.error(
-
-                "Mobile number already registered."
-
+                "❌ Mobile number already registered."
             )
 
             return
 
-        # -----------------------------------------------
-        # ATTENDEE ID
-        # -----------------------------------------------
-
+        # Generate attendee ID
         attendee_id = generate_attendee_id(
-
             full_name,
-
             mobile
-
         )
 
-        # -----------------------------------------------
-        # QR CODE
-        # -----------------------------------------------
-
-        qr_code_path = generate_qr_code(
-
-            attendee_id
-
-        )
-
-        # -----------------------------------------------
-        # FINAL DATA
-        # -----------------------------------------------
-
+        # Prepare attendee data
         attendee = {
 
             "attendee_id": attendee_id,
@@ -253,7 +183,7 @@ def render_registration_page(db):
 
             "company": company.strip(),
 
-            "registration_type": "Spot Registration",
+            "registration_type": "Walk-In",
 
             "payment_status": "Paid",
 
@@ -261,66 +191,44 @@ def render_registration_page(db):
 
             "amount_paid": total_amount,
 
+            "membership_amount": membership_amount,
+
+            "contribution_amount": contribution_amount,
+
             "remarks": remarks.strip(),
 
             "checked_in": True,
 
-            "checked_in_at": None,
-
-            "qr_code_path": qr_code_path,
-
         }
 
-        # -----------------------------------------------
-        # SAVE DATABASE
-        # -----------------------------------------------
-
-        result = db.insert_attendee(
-
-            attendee
-
-        )
-
-        # -----------------------------------------------
-        # SUCCESS
-        # -----------------------------------------------
+        # Save to database
+        result = db.insert_attendee(attendee)
 
         if result:
 
-            db.mark_checked_in(
-
-                attendee_id
-
-            )
+            db.mark_checked_in(attendee_id)
 
             st.success(
-
-                "Registration completed successfully."
-
+                "✅ Registration completed successfully!"
             )
 
-            st.markdown(
+            st.markdown(f"**Attendee ID:** `{attendee_id}`")
 
-                f"### Attendee ID: {attendee_id}"
+            col1, col2, col3 = st.columns([1, 1, 1])
 
-            )
+            with col2:
+                st.metric("Membership", f"₹{membership_amount}")
 
-            st.image(
+            with col1:
+                st.metric("Contribution", f"₹{contribution_amount}")
 
-                qr_code_path,
-
-                width=220,
-
-                caption="QR Code"
-
-            )
+            with col3:
+                st.metric("Total Collected", f"₹{total_amount}")
 
             st.balloons()
 
         else:
 
             st.error(
-
-                "Registration failed."
-
+                "❌ Registration failed. Please try again."
             )

@@ -6,43 +6,9 @@ import streamlit as st
 from PIL import Image
 
 from database import Database
+from constants import MEMBERSHIP_OPTIONS
+from utils import render_payment_section
 
-
-# ---------------------------------------------------
-# QR SUPPORT
-# ---------------------------------------------------
-
-try:
-
-    from pyzbar.pyzbar import decode
-
-    QR_DECODER_AVAILABLE = True
-
-except ImportError:
-
-    QR_DECODER_AVAILABLE = False
-
-
-# ---------------------------------------------------
-# MEMBERSHIP OPTIONS
-# ---------------------------------------------------
-
-MEMBERSHIP_OPTIONS = {
-
-    "None": 0,
-
-    "Life Member - ₹1000": 1000,
-
-    "Patron Member - ₹5000": 5000,
-
-    "Patron Upgrade - ₹4000": 4000,
-
-}
-
-
-# ---------------------------------------------------
-# CHECK-IN PAGE
-# ---------------------------------------------------
 
 def render_checkin_page(db: Database):
 
@@ -58,10 +24,7 @@ def render_checkin_page(db: Database):
 
     df = pd.DataFrame(attendees)
 
-    # ---------------------------------------------------
-    # FILTERS
-    # ---------------------------------------------------
-
+    # Filters
     col1, col2, col3 = st.columns(3)
 
     with col1:
@@ -96,10 +59,7 @@ def render_checkin_page(db: Database):
 
         )
 
-    # ---------------------------------------------------
-    # FILTER DATA
-    # ---------------------------------------------------
-
+    # Filter Data
     filtered_df = df.copy()
 
     if selected_batch != "All":
@@ -139,55 +99,7 @@ def render_checkin_page(db: Database):
 
         ]
 
-    # ---------------------------------------------------
-    # QR SEARCH
-    # ---------------------------------------------------
-
-    if QR_DECODER_AVAILABLE:
-
-        qr_upload = st.file_uploader(
-
-            "Upload QR Code",
-
-            type=["png", "jpg", "jpeg"]
-
-        )
-
-        if qr_upload:
-
-            image = Image.open(
-
-                io.BytesIO(
-                    qr_upload.read()
-                )
-
-            )
-
-            decoded = decode(image)
-
-            if decoded:
-
-                qr_value = decoded[0].data.decode(
-                    "utf-8"
-                )
-
-                filtered_df = filtered_df[
-
-                    filtered_df["attendee_id"]
-                    == qr_value
-
-                ]
-
-                st.success(
-
-                    f"QR Detected: {qr_value}"
-
-                )
-
-    # ---------------------------------------------------
-    # RESULTS
-    # ---------------------------------------------------
-
+    # Results
     st.markdown("---")
 
     st.subheader(
@@ -195,10 +107,6 @@ def render_checkin_page(db: Database):
         f"Results Found: {len(filtered_df)}"
 
     )
-
-    # ---------------------------------------------------
-    # NO RECORD
-    # ---------------------------------------------------
 
     if filtered_df.empty:
 
@@ -216,10 +124,7 @@ def render_checkin_page(db: Database):
 
         return
 
-    # ---------------------------------------------------
-    # DISPLAY RESULTS
-    # ---------------------------------------------------
-
+    # Display Results
     for _, attendee in filtered_df.iterrows():
 
         st.markdown("---")
@@ -228,14 +133,11 @@ def render_checkin_page(db: Database):
 
         if attendee["checked_in"]:
 
-            status = "Checked-In"
+            status = "✅ Checked-In"
 
         col_left, col_right = st.columns([2, 2])
 
-        # ------------------------------------------------
-        # LEFT PANEL
-        # ------------------------------------------------
-
+        # Left Panel
         with col_left:
 
             st.subheader(
@@ -247,7 +149,7 @@ def render_checkin_page(db: Database):
             st.write(
 
                 f"**Attendee ID:** "
-                f"{attendee['attendee_id']}"
+                f"`{attendee['attendee_id']}`"
 
             )
 
@@ -289,15 +191,12 @@ def render_checkin_page(db: Database):
 
             )
 
-        # ------------------------------------------------
-        # RIGHT PANEL
-        # ------------------------------------------------
-
+        # Right Panel
         with col_right:
 
             st.write(
 
-                f"**Registration:** "
+                f"**Registration Type:** "
                 f"{attendee['registration_type']}"
 
             )
@@ -316,70 +215,26 @@ def render_checkin_page(db: Database):
 
             )
 
-            # --------------------------------------------
-            # CONTRIBUTION
-            # --------------------------------------------
+            # Payment Section
+            st.markdown("---")
 
-            contribution_amount = st.number_input(
-
-                "Contribution Amount",
-
-                min_value=0,
-
-                step=100,
-
-                value=0,
-
-                key=f"contribution_{attendee['attendee_id']}"
-
+            payment_data = render_payment_section(
+                MEMBERSHIP_OPTIONS,
+                section_key=f"checkin_{attendee['attendee_id']}"
             )
 
-            # --------------------------------------------
-            # MEMBERSHIP
-            # --------------------------------------------
+            membership_amount = payment_data["membership_amount"]
+            contribution_amount = payment_data["contribution_amount"]
+            total_amount = payment_data["total_amount"]
 
-            membership_choice = st.selectbox(
-
-                "Membership Fee",
-
-                list(
-                    MEMBERSHIP_OPTIONS.keys()
-                ),
-
-                key=f"membership_{attendee['attendee_id']}"
-
-            )
-
-            membership_amount = MEMBERSHIP_OPTIONS[
-                membership_choice
-            ]
-
-            # --------------------------------------------
-            # TOTAL
-            # --------------------------------------------
-
-            total_amount = (
-
-                contribution_amount
-                + membership_amount
-
-            )
-
-            st.success(
-
-                f"Total Collection: ₹{total_amount}"
-
-            )
-
-        # ------------------------------------------------
-        # CHECK-IN ACTION
-        # ------------------------------------------------
+        # Check-In Action
+        st.markdown("---")
 
         if not attendee["checked_in"]:
 
             if st.button(
 
-                f"Check-In - {attendee['attendee_id']}",
+                f"✅ Check-In - {attendee['attendee_id']}",
 
                 key=f"checkin_{attendee['attendee_id']}"
 
@@ -397,6 +252,10 @@ def render_checkin_page(db: Database):
 
                         "amount_paid": total_amount,
 
+                        "membership_amount": membership_amount,
+
+                        "contribution_amount": contribution_amount,
+
                         "payment_status": "Paid",
 
                         "checked_in": True,
@@ -413,7 +272,7 @@ def render_checkin_page(db: Database):
 
                 st.success(
 
-                    f"{attendee['name']} checked in successfully."
+                    f"✅ {attendee['name']} checked in successfully."
 
                 )
 
@@ -423,6 +282,6 @@ def render_checkin_page(db: Database):
 
             st.success(
 
-                "Already Checked-In"
+                "✅ Already Checked-In"
 
             )
