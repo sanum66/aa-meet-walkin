@@ -1,0 +1,15 @@
+[client]
+showErrorDetails = true
+allowRunOnSave = true
+
+[server]
+maxUploadSize = 200
+headless = true
+port = 8501
+
+[theme]
+primaryColor = "#2d6cdf"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f0f2f6"
+textColor = "#262730"
+font = "sans serif"
