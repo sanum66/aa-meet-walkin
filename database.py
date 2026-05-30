@@ -2,10 +2,16 @@ import os
 import sqlite3
 import hashlib
 import secrets
+
 from datetime import datetime
 
 from dotenv import load_dotenv
 from supabase_client import supabase
+
+
+# ---------------------------------------------------
+# ENV CONFIG
+# ---------------------------------------------------
 
 load_dotenv()
 
@@ -28,6 +34,10 @@ DEFAULT_PASSWORD = os.getenv(
     "admin123"
 )
 
+
+# ---------------------------------------------------
+# DATABASE CLASS
+# ---------------------------------------------------
 
 class Database:
 
@@ -216,49 +226,25 @@ class Database:
 
                 "attendee_id": attendee_id,
 
-                "name": data.get(
-                    "name",
-                    ""
-                ),
+                "name": data.get("name", ""),
 
-                "course": data.get(
-                    "course",
-                    ""
-                ),
+                "course": data.get("course", ""),
 
-                "stream": data.get(
-                    "stream",
-                    ""
-                ),
+                "stream": data.get("stream", ""),
 
                 "batch_year": int(
-                    data.get(
-                        "batch_year",
-                        0
-                    )
+                    data.get("batch_year", 0)
                 ) if str(
-                    data.get(
-                        "batch_year",
-                        ""
-                    )
+                    data.get("batch_year", "")
                 ).isdigit() else None,
 
-                "email": data.get(
-                    "email",
-                    ""
-                ),
+                "email": data.get("email", ""),
 
                 "mobile": str(
-                    data.get(
-                        "mobile",
-                        ""
-                    )
+                    data.get("mobile", "")
                 ),
 
-                "status": data.get(
-                    "status",
-                    ""
-                ),
+                "status": data.get("status", ""),
 
                 "food_preference": data.get(
                     "food_preference",
@@ -272,20 +258,11 @@ class Database:
                     )
                 ),
 
-                "gender": data.get(
-                    "gender",
-                    ""
-                ),
+                "gender": data.get("gender", ""),
 
-                "city": data.get(
-                    "city",
-                    ""
-                ),
+                "city": data.get("city", ""),
 
-                "company": data.get(
-                    "company",
-                    ""
-                ),
+                "company": data.get("company", ""),
 
                 "registration_type": data.get(
                     "registration_type",
@@ -328,7 +305,8 @@ class Database:
                     ""
                 ),
 
-                "created_at": datetime.utcnow().isoformat(),
+                "created_at":
+                datetime.utcnow().isoformat(),
 
                 "checked_in": False
 
@@ -349,60 +327,6 @@ class Database:
             return False
 
     # ---------------------------------------------------
-    # GET SINGLE ATTENDEE
-    # ---------------------------------------------------
-
-    def get_attendee(
-        self,
-        attendee_id=None,
-        mobile=None,
-        name=None
-    ):
-
-        try:
-
-            query = supabase.table(
-                "attendees"
-            ).select("*")
-
-            if attendee_id:
-
-                response = query.eq(
-                    "attendee_id",
-                    attendee_id
-                ).execute()
-
-            elif mobile:
-
-                response = query.eq(
-                    "mobile",
-                    mobile
-                ).execute()
-
-            elif name:
-
-                response = query.ilike(
-                    "name",
-                    f"%{name}%"
-                ).execute()
-
-            else:
-
-                return None
-
-            if response.data:
-
-                return response.data[0]
-
-            return None
-
-        except Exception as e:
-
-            print(e)
-
-            return None
-
-    # ---------------------------------------------------
     # GET ALL ATTENDEES
     # ---------------------------------------------------
 
@@ -415,37 +339,6 @@ class Database:
             ).select("*").order(
                 "created_at",
                 desc=True
-            ).execute()
-
-            return response.data
-
-        except Exception as e:
-
-            print(e)
-
-            return []
-
-    # ---------------------------------------------------
-    # SEARCH ATTENDEES
-    # ---------------------------------------------------
-
-    def search_attendees(
-        self,
-        search_text
-    ):
-
-        try:
-
-            response = supabase.table(
-                "attendees"
-            ).select("*").or_(
-
-                f"name.ilike.%{search_text}%,"
-
-                f"mobile.ilike.%{search_text}%,"
-
-                f"attendee_id.ilike.%{search_text}%"
-
             ).execute()
 
             return response.data
@@ -587,7 +480,7 @@ class Database:
         ]
 
     # ---------------------------------------------------
-    # ANALYTICS BY STREAM
+    # ANALYTICS BY DEPARTMENT
     # ---------------------------------------------------
 
     def analytics_by_department(self):
@@ -617,93 +510,6 @@ class Database:
             for key, value in summary.items()
 
         ]
-
-    # ---------------------------------------------------
-    # ANALYTICS BY DATE
-    # ---------------------------------------------------
-
-    def analytics_by_date(self):
-
-        attendees = self.get_all_attendees()
-
-        summary = {}
-
-        for attendee in attendees:
-
-            created_at = attendee.get(
-                "created_at",
-                ""
-            )
-
-            if created_at:
-
-                day = created_at[:10]
-
-                summary[day] = (
-                    summary.get(day, 0) + 1
-                )
-
-        return [
-
-            {
-                "day": key,
-                "count": value
-            }
-
-            for key, value in summary.items()
-
-        ]
-    
-    # ---------------------------------------------------
-    # UPDATE ATTENDEE
-    # ---------------------------------------------------
-
-    def update_attendee(
-        self,
-        attendee_id,
-        updates
-    ):
-
-        try:
-
-            supabase.table(
-                "attendees"
-            ).update(
-                updates
-            ).eq(
-                "attendee_id",
-                attendee_id
-            ).execute()
-
-            return True
-
-        except Exception as e:
-
-            print(e)
-
-            return False
-        
-    # ---------------------------------------------------
-    # DELETE ATTENDEE
-    # ---------------------------------------------------
-
-    def delete_attendee(
-        self,
-        attendee_id
-    ):
-
-        try:
-
-            supabase.table(
-                "attendees"
-            ).delete().eq(
-                "attendee_id",
-                attendee_id
-            ).execute()
-
-        except Exception as e:
-
-            print(e)
 
     # ---------------------------------------------------
     # CLOSE SQLITE

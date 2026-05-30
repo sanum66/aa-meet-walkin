@@ -1,0 +1,38 @@
+.
+├── Config.py
+├── IMPLEMENTATION_SUMMARY.md
+├── LICENSE
+├── PROJECT_EXPORT.txt
+├── PROJECT_STRUCTURE.txt
+├── README.md
+├── app.py
+├── assets
+│   ├── IRTTAA-LOGO-1.png
+│   ├── IRTTAA.svg
+│   ├── IRTTAA_256x256.png
+│   └── style.css
+├── auth.py
+├── components
+│   ├── cards.py
+│   ├── navbar.py
+│   └── sidebar.py
+├── constants.py
+├── data
+│   └── registrations.db
+├── database.py
+├── pages
+│   ├── __init__.py
+│   ├── admin.py
+│   ├── analytics.py
+│   ├── checkin.py
+│   ├── dashboard.py
+│   ├── export_data.py
+│   ├── import_data.py
+│   └── registration.py
+├── requirements.txt
+├── streamlit_app.py
+├── supabase_client.py
+├── theme.py
+└── utils.py
+
+4 directories, 31 files

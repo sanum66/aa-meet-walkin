@@ -1,129 +1,520 @@
 import streamlit as st
 import pandas as pd
-import altair as alt
 
 from utils import dataframe_from_records
 
 
+# ---------------------------------------------------
+# DASHBOARD
+# ---------------------------------------------------
+
 def render_dashboard_page(db):
 
-    st.header("Dashboard")
+    # ---------------------------------------------------
+    # TITLE
+    # ---------------------------------------------------
 
-    metrics = db.get_metrics()
+    st.markdown(
 
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
+        """
+        <div style="
+            margin-bottom:28px;
+        ">
 
-    col1.metric("📊 Total Registrations", metrics["total"])
-    col2.metric("🚶 Walk-Ins", metrics["walk_in"])
-    col3.metric("✅ Checked-In", metrics["checked_in"])
-    col4.metric("💳 Membership", f"₹{metrics['membership_total']:.2f}")
-    col5.metric("🎁 Contribution", f"₹{metrics['contribution_total']:.2f}")
-    col6.metric("💰 Total Collected", f"₹{metrics['paid']:.2f}")
+            <div style="
+                font-size:38px;
+                font-weight:800;
+                color:#0F172A;
+            ">
+                Dashboard
+            </div>
 
-    st.markdown("---")
+            <div style="
+                font-size:17px;
+                color:#64748B;
+                margin-top:8px;
+            ">
+                Real-time alumni meet overview
+            </div>
 
-    batch_data = dataframe_from_records(
-        db.analytics_by_batch()
+        </div>
+        """,
+
+        unsafe_allow_html=True
+
     )
 
-    dept_data = dataframe_from_records(
-        db.analytics_by_department()
-    )
+    # ---------------------------------------------------
+    # FETCH DATA
+    # ---------------------------------------------------
 
-    daily_data = dataframe_from_records(
-        db.analytics_by_date()
-    )
+    attendees = db.get_all_attendees()
 
-    row1, row2 = st.columns(2)
+    df = dataframe_from_records(attendees)
 
-    with row1:
+    # ---------------------------------------------------
+    # SAFE COUNTS
+    # ---------------------------------------------------
 
-        st.subheader("Batch Participation")
+    total_registrations = len(df)
 
-        if not batch_data.empty:
+    checked_in = 0
 
-            chart = alt.Chart(batch_data).mark_bar().encode(
-                x=alt.X(
-                    "category:N",
-                    title="Batch Year",
-                    sort="-y"
-                ),
-                y=alt.Y(
-                    "count:Q",
-                    title="Attendee Count"
-                ),
-                tooltip=["category", "count"]
+    total_collection = 0
+
+    walkins = 0
+
+    pre_registered = 0
+
+    total_contribution = 0
+
+    total_membership = 0
+
+    if not df.empty:
+
+        if "checked_in" in df.columns:
+
+            checked_in = (
+                df["checked_in"]
+                .fillna(False)
+                .astype(bool)
+                .sum()
             )
 
-            st.altair_chart(
-                chart,
-                use_container_width=True
+        if "amount_paid" in df.columns:
+
+            total_collection = (
+                pd.to_numeric(
+                    df["amount_paid"],
+                    errors="coerce"
+                )
+                .fillna(0)
+                .sum()
+            )
+
+        if "registration_type" in df.columns:
+
+            walkins = len(
+
+                df[
+                    df["registration_type"]
+                    ==
+                    "Spot Registration"
+                ]
+
+            )
+
+            pre_registered = len(
+
+                df[
+                    df["registration_type"]
+                    ==
+                    "Pre-Registered"
+                ]
+
+            )
+
+        if "contribution_amount" in df.columns:
+
+            total_contribution = (
+                pd.to_numeric(
+                    df["contribution_amount"],
+                    errors="coerce"
+                )
+                .fillna(0)
+                .sum()
+            )
+
+        if "membership_amount" in df.columns:
+
+            total_membership = (
+                pd.to_numeric(
+                    df["membership_amount"],
+                    errors="coerce"
+                )
+                .fillna(0)
+                .sum()
+            )
+
+    # ---------------------------------------------------
+    # KPI CARDS
+    # ---------------------------------------------------
+
+    cards = st.columns(4)
+
+    metric_card(
+
+        cards[0],
+
+        "Total Registrations",
+
+        total_registrations,
+
+        "👥"
+
+    )
+
+    metric_card(
+
+        cards[1],
+
+        "Checked-In",
+
+        checked_in,
+
+        "✅"
+
+    )
+
+    metric_card(
+
+        cards[2],
+
+        "Walk-Ins",
+
+        walkins,
+
+        "📝"
+
+    )
+
+    metric_card(
+
+        cards[3],
+
+        "Total Collection",
+
+        f"₹{total_collection:,.0f}",
+
+        "💰"
+
+    )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ---------------------------------------------------
+    # SECOND ROW
+    # ---------------------------------------------------
+
+    cards2 = st.columns(3)
+
+    metric_card(
+
+        cards2[0],
+
+        "Pre-Registered",
+
+        pre_registered,
+
+        "🎟️"
+
+    )
+
+    metric_card(
+
+        cards2[1],
+
+        "Contribution",
+
+        f"₹{total_contribution:,.0f}",
+
+        "🤝"
+
+    )
+
+    metric_card(
+
+        cards2[2],
+
+        "Membership",
+
+        f"₹{total_membership:,.0f}",
+
+        "🏅"
+
+    )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ---------------------------------------------------
+    # TABLE SECTION
+    # ---------------------------------------------------
+
+    left, right = st.columns([1.5, 1])
+
+    # ---------------------------------------------------
+    # RECENT REGISTRATIONS
+    # ---------------------------------------------------
+
+    with left:
+
+        st.markdown(
+
+            """
+            <div class="metric-card">
+
+                <div style="
+                    font-size:24px;
+                    font-weight:700;
+                    margin-bottom:20px;
+                    color:#0F172A;
+                ">
+                    Recent Registrations
+                </div>
+
+            """,
+
+            unsafe_allow_html=True
+
+        )
+
+        if not df.empty:
+
+            display_columns = [
+
+                col for col in [
+
+                    "name",
+                    "mobile",
+                    "batch_year",
+                    "registration_type",
+                    "amount_paid"
+
+                ]
+
+                if col in df.columns
+
+            ]
+
+            st.dataframe(
+
+                df[display_columns]
+                .tail(10),
+
+                use_container_width=True,
+
+                hide_index=True
+
             )
 
         else:
-            st.info("No data available")
 
-    with row2:
-
-        st.subheader("Department Analytics")
-
-        if not dept_data.empty:
-
-            chart = alt.Chart(dept_data).mark_bar().encode(
-                x=alt.X(
-                    "count:Q",
-                    title="Attendees"
-                ),
-                y=alt.Y(
-                    "category:N",
-                    title="Department",
-                    sort="-x"
-                ),
-                tooltip=["category", "count"]
+            st.info(
+                "No registrations found."
             )
 
-            st.altair_chart(
-                chart,
-                use_container_width=True
+        st.markdown(
+            "</div>",
+            unsafe_allow_html=True
+        )
+
+    # ---------------------------------------------------
+    # LIVE STATUS
+    # ---------------------------------------------------
+
+    with right:
+
+        st.markdown(
+
+            """
+            <div class="metric-card">
+
+                <div style="
+                    font-size:24px;
+                    font-weight:700;
+                    margin-bottom:20px;
+                    color:#0F172A;
+                ">
+                    Event Status
+                </div>
+
+            """,
+
+            unsafe_allow_html=True
+
+        )
+
+        percentage = 0
+
+        if total_registrations > 0:
+
+            percentage = int(
+
+                (
+                    checked_in
+                    /
+                    total_registrations
+                )
+                * 100
             )
 
-        else:
-            st.info("No data available")
+        st.progress(
 
-    st.markdown("---")
+            percentage / 100
 
-    st.subheader("Daily Registration Trends")
-
-    if not daily_data.empty:
-
-        daily_data["day"] = pd.to_datetime(
-            daily_data["day"]
         )
 
-        chart = alt.Chart(daily_data).mark_line(
-            point=True
-        ).encode(
-            x=alt.X(
-                "day:T",
-                title="Date"
-            ),
-            y=alt.Y(
-                "count:Q",
-                title="Registrations"
-            ),
-            tooltip=["day", "count"]
+        st.markdown(
+
+            f"""
+
+            <div style="
+                margin-top:18px;
+                font-size:18px;
+                font-weight:700;
+                color:#1E293B;
+            ">
+                {percentage}% Checked-In
+            </div>
+
+            """,
+
+            unsafe_allow_html=True
+
         )
 
-        st.altair_chart(
-            chart,
-            use_container_width=True
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        info_row(
+
+            "Total Attendees",
+
+            total_registrations
+
         )
 
-    else:
-        st.info("No registration trends yet")
+        info_row(
 
-    st.markdown("---")
+            "Checked-In",
 
-    st.write(
-        "Use the sidebar to manage registrations and check-ins."
+            checked_in
+
+        )
+
+        info_row(
+
+            "Pending",
+
+            total_registrations
+            -
+            checked_in
+
+        )
+
+        info_row(
+
+            "Walk-Ins",
+
+            walkins
+
+        )
+
+        st.markdown(
+            "</div>",
+            unsafe_allow_html=True
+        )
+
+
+# ---------------------------------------------------
+# METRIC CARD
+# ---------------------------------------------------
+
+def metric_card(
+
+    container,
+
+    title,
+
+    value,
+
+    icon
+
+):
+
+    with container:
+
+        st.markdown(
+
+            f"""
+
+            <div class="metric-card">
+
+                <div style="
+                    display:flex;
+                    justify-content:space-between;
+                    align-items:center;
+                    margin-bottom:16px;
+                ">
+
+                    <div style="
+                        font-size:15px;
+                        color:#64748B;
+                        font-weight:600;
+                    ">
+                        {title}
+                    </div>
+
+                    <div style="
+                        font-size:28px;
+                    ">
+                        {icon}
+                    </div>
+
+                </div>
+
+                <div style="
+                    font-size:34px;
+                    font-weight:800;
+                    color:#0F172A;
+                ">
+                    {value}
+                </div>
+
+            </div>
+
+            """,
+
+            unsafe_allow_html=True
+
+        )
+
+
+# ---------------------------------------------------
+# INFO ROW
+# ---------------------------------------------------
+
+def info_row(label, value):
+
+    st.markdown(
+
+        f"""
+
+        <div style="
+            display:flex;
+            justify-content:space-between;
+            padding:12px 0;
+            border-bottom:
+                1px solid #E2E8F0;
+        ">
+
+            <div style="
+                color:#64748B;
+                font-weight:500;
+            ">
+                {label}
+            </div>
+
+            <div style="
+                color:#0F172A;
+                font-weight:700;
+            ">
+                {value}
+            </div>
+
+        </div>
+
+        """,
+
+        unsafe_allow_html=True
+
     )

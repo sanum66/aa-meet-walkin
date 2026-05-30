@@ -1,30 +1,47 @@
-import os
-from datetime import datetime
-
 import streamlit as st
 
 from auth import AuthManager
 from database import Database
 
-from pages.analytics import render_analytics_page
-from pages.admin import render_admin_panel
-from pages.checkin import render_checkin_page
+from utils import inject_custom_css
+
+from components.sidebar import render_sidebar
+from components.navbar import render_navbar
+
 from pages.dashboard import render_dashboard_page
 from pages.registration import render_registration_page
-
+from pages.checkin import render_checkin_page
+from pages.analytics import render_analytics_page
+from pages.admin import render_admin_panel
 from pages.import_data import render_import_page
 from pages.export_data import render_export_page
 
-from utils import inject_custom_css
 
+# ---------------------------------------------------
+# MAIN APPLICATION
+# ---------------------------------------------------
 
 def main():
 
+    # ---------------------------------------------------
+    # PAGE CONFIG
+    # ---------------------------------------------------
+
     st.set_page_config(
-        page_title="IRTTAA Walk-In Registration System",
+
+        page_title="IRTTAA NuzhAI",
+
+        page_icon="🚀",
+
         layout="wide",
-        initial_sidebar_state="expanded",
+
+        initial_sidebar_state="expanded"
+
     )
+
+    # ---------------------------------------------------
+    # LOAD THEME
+    # ---------------------------------------------------
 
     inject_custom_css()
 
@@ -34,14 +51,8 @@ def main():
 
     db = Database()
 
-    # ---------------------------------------------------
-    # AUTH
-    # ---------------------------------------------------
-
     auth = AuthManager(db)
 
-    # IMPORTANT
-    # CREATE DEFAULT ADMIN USER
     auth.ensure_default_user()
 
     # ---------------------------------------------------
@@ -61,67 +72,7 @@ def main():
         st.session_state.role = None
 
     # ---------------------------------------------------
-    # SIDEBAR
-    # ---------------------------------------------------
-
-    with st.sidebar:
-
-        logo_path = os.path.join(
-            "assets",
-            "logo.png"
-        )
-
-        if os.path.exists(logo_path):
-
-            st.image(
-                logo_path,
-                width=120
-            )
-
-        st.title("IRTTAA Walk-In")
-
-        if st.session_state.authenticated:
-
-            st.markdown(
-                f"**Logged in as:** "
-                f"{st.session_state.username}"
-            )
-
-            st.markdown("---")
-
-            page = st.radio(
-                "Navigation",
-                [
-                    "Dashboard",
-                    "Walk-In Registration",
-                    "Search & Check-In",
-                    "Admin Panel",
-                    "Analytics",
-                    "Import Data",
-                    "Export Data",
-                ],
-                index=0,
-            )
-
-            st.markdown("---")
-
-            if st.button("Logout"):
-
-                auth.logout()
-
-                st.rerun()
-
-        else:
-
-            page = "Login"
-
-            st.markdown(
-                "Please sign in to start "
-                "managing walk-in registrations."
-            )
-
-    # ---------------------------------------------------
-    # LOGIN SCREEN
+    # LOGIN PAGE
     # ---------------------------------------------------
 
     if not st.session_state.authenticated:
@@ -131,36 +82,58 @@ def main():
         return
 
     # ---------------------------------------------------
-    # PAGE NAVIGATION
+    # SIDEBAR
     # ---------------------------------------------------
 
-    if page == "Dashboard":
+    selected_page, logout = render_sidebar()
+
+    if logout:
+
+        auth.logout()
+
+        st.rerun()
+
+    # ---------------------------------------------------
+    # NAVBAR
+    # ---------------------------------------------------
+
+    render_navbar(
+
+        st.session_state.username
+
+    )
+
+    # ---------------------------------------------------
+    # ROUTING
+    # ---------------------------------------------------
+
+    if selected_page == "Dashboard":
 
         render_dashboard_page(db)
 
-    elif page == "Walk-In Registration":
+    elif selected_page == "Walk-In Registration":
 
         render_registration_page(db)
 
-    elif page == "Search & Check-In":
+    elif selected_page == "Search & Check-In":
 
         render_checkin_page(db)
 
-    elif page == "Admin Panel":
-
-        render_admin_panel(db)
-
-    elif page == "Analytics":
+    elif selected_page == "Analytics":
 
         render_analytics_page(db)
 
-    elif page == "Import Data":
+    elif selected_page == "Import Data":
 
         render_import_page(db)
 
-    elif page == "Export Data":
+    elif selected_page == "Export Data":
 
         render_export_page(db)
+
+    elif selected_page == "Admin Tools":
+
+        render_admin_panel(db)
 
 
 # ---------------------------------------------------
