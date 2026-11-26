@@ -2,196 +2,119 @@
 
 import React from "react";
 import Image from "next/image";
-import { motion } from "framer-motion";
-import {
-  CheckCircle2,
-  UserCheck,
-  RotateCcw,
-  Printer,
-  Sparkles,
-} from "lucide-react";
-import { EventRegistration } from "@/types/database.types";
+import Link from "next/link";
+import { CheckCircle2, Printer, RotateCcw } from "lucide-react";
+import { Event, EventRegistration } from "@/types/database.types";
+import { Badge, Button, formatDate, inr, passNumber } from "@/components/ui";
 
 interface SuccessCardProps {
   registration: EventRegistration;
-  eventName?: string;
+  event: Event;
   onReset: () => void;
 }
 
-export function SuccessCard({
-  registration,
-  eventName,
-  onReset,
-}: SuccessCardProps) {
-  const handlePrint = () => {
-    window.print();
-  };
+/** Ticket-style event pass shown after check-in (and printable). */
+export function SuccessCard({ registration: r, event, onReset }: SuccessCardProps) {
+
+  const details: [string, string][] = [
+    ["Batch", [r.graduating_year, r.course, r.stream].filter(Boolean).join(" · ") || "—"],
+    ["Food", r.food_preference || "—"],
+    ["Family", r.accompanying_family_count > 0 ? String(r.accompanying_family_count) : "None"],
+    ["Checked in", new Date(r.checked_in_at.endsWith("Z") ? r.checked_in_at : `${r.checked_in_at}Z`).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })],
+  ];
 
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.3 }}
-      className="max-w-2xl mx-auto"
-    >
-      {/* Celebration Header */}
-      <div className="text-center mb-8 print:hidden">
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: "spring", stiffness: 260, damping: 20 }}
-          className="w-20 h-20 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center mx-auto shadow-xl shadow-teal-700/25 mb-4"
-        >
-          <CheckCircle2 className="w-10 h-10" />
-        </motion.div>
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold uppercase tracking-wider mb-2">
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>Event Registration & Check-In Complete</span>
-        </span>
-        <h2 className="text-3xl font-black text-teal-950">
-          Welcome, {registration.full_name}!
-        </h2>
-        <p className="text-sm text-teal-800/80 mt-1">
-          You are officially checked in{eventName ? ` for ${eventName}` : ""}.
-        </p>
+    <div className="space-y-5">
+      <div className="flex items-center gap-3 no-print">
+        <CheckCircle2 className="w-8 h-8 text-green-600 shrink-0" />
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-ink">Checked in</h1>
+          <p className="text-sm text-muted">Show this pass to the person, or print it.</p>
+        </div>
       </div>
 
-      {/* Official Digital Attendee Badge Card */}
-      <div className="p-8 rounded-3xl bg-white shadow-2xl shadow-teal-950/10 border-2 border-teal-200 relative overflow-hidden print:shadow-none print:border-black">
-        <div className="flex items-center justify-between pb-6 border-b border-teal-100">
-          <div className="flex items-center gap-3">
-            <div className="relative w-12 h-12 rounded-2xl overflow-hidden shadow-md border-2 border-teal-200/80 bg-white flex items-center justify-center p-0.5">
-              <Image
-                src="/logo.png"
-                alt="IRTTAA Logo"
-                width={48}
-                height={48}
-                className="w-full h-full object-contain"
-              />
-            </div>
-            <div>
-              <h4 className="font-extrabold text-teal-950 text-base leading-tight">
-                {eventName || "IRTTAA NuzhAI"}
-              </h4>
-              <p className="text-xs text-teal-700/80 font-medium">
-                Institute of Road and Transport Technology Alumni Association
-              </p>
+      <article className="relative bg-white rounded-2xl border border-line shadow-[0_4px_16px_rgba(16,24,40,0.08)] overflow-hidden print:shadow-none">
+        <div className="brand-stripe" />
+        <header className="bg-brand-700 text-white px-5 py-4 flex items-center gap-3">
+          <div className="w-11 h-11 shrink-0 rounded-full bg-white flex items-center justify-center">
+            <Image src="/logo.png" alt="" width={38} height={38} />
+          </div>
+          <div className="min-w-0">
+            <div className="font-semibold truncate">{event.event_name}</div>
+            <div className="text-sm text-brand-100 truncate">
+              {formatDate(event.event_date)}
+              {event.venue ? ` · ${event.venue}` : ""}
             </div>
           </div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold">
-            <UserCheck className="w-4 h-4" />
-            <span>Checked In</span>
-          </div>
+        </header>
+
+        <div className="px-5 pt-5 pb-4">
+          <div className="text-xs font-medium uppercase tracking-wider text-muted">Attendee</div>
+          <div className="mt-0.5 text-xl font-semibold text-ink">{r.full_name}</div>
         </div>
 
-        {/* Badge Center Details */}
-        <div className="py-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-[11px] font-bold text-teal-700/70 uppercase tracking-widest">
-                Pass Number
-              </span>
-              <div className="text-2xl font-mono font-black text-teal-900 tracking-wide mt-0.5">
-                IRTTAA-{String(registration.registration_id).padStart(4, "0")}
-              </div>
-            </div>
-            <span
-              className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase ${
-                registration.registration_source === "PRE_REGISTERED"
-                  ? "bg-blue-100 text-blue-800"
-                  : "bg-orange-100 text-orange-800"
-              }`}
-            >
-              {registration.registration_source === "PRE_REGISTERED"
-                ? "Pre-Registered"
-                : "On-Spot Walk-In"}
-            </span>
-          </div>
+        {/* Perforation */}
+        <div className="relative h-6" aria-hidden="true">
+          <div className="absolute -left-3 top-0 w-6 h-6 rounded-full bg-canvas border border-line" />
+          <div className="absolute -right-3 top-0 w-6 h-6 rounded-full bg-canvas border border-line" />
+          <div className="absolute left-5 right-5 top-1/2 border-t-2 border-dashed border-line" />
+        </div>
 
-          <div className="grid grid-cols-2 gap-4 pt-2 text-sm">
+        <div className="px-5 pt-3 pb-5 space-y-4">
+          <div className="flex items-end justify-between gap-3">
             <div>
-              <span className="text-[11px] font-bold text-teal-700/70 uppercase tracking-wider block">
-                Full Name
-              </span>
-              <div className="font-bold text-teal-950">
-                {registration.full_name}
+              <div className="text-xs font-medium uppercase tracking-wider text-muted">Pass number</div>
+              <div className="mt-0.5 text-2xl font-semibold font-mono tracking-wide text-brand-800">
+                {passNumber(r.registration_id)}
               </div>
             </div>
-
-            <div>
-              <span className="text-[11px] font-bold text-teal-700/70 uppercase tracking-wider block">
-                Batch & Stream
-              </span>
-              <div className="font-bold text-teal-950">
-                {registration.graduating_year || "—"} •{" "}
-                {registration.course || ""} {registration.stream || ""}
-              </div>
-            </div>
-
-            <div>
-              <span className="text-[11px] font-bold text-teal-700/70 uppercase tracking-wider block">
-                Email / Mobile
-              </span>
-              <div className="font-semibold text-teal-900 text-xs">
-                {registration.email}
-                {registration.mobile && (
-                  <span className="block font-mono">{registration.mobile}</span>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <span className="text-[11px] font-bold text-teal-700/70 uppercase tracking-wider block">
-                Food & Accompanying
-              </span>
-              <div className="font-semibold text-teal-900 text-xs">
-                {registration.food_preference || "Vegetarian"} • Family:{" "}
-                {registration.accompanying_family_count} • Alumni:{" "}
-                {registration.accompanying_alumni_count}
-              </div>
-            </div>
-          </div>
-
-          {/* Payment Summary Box */}
-          <div className="mt-4 p-4 rounded-2xl bg-teal-50/80 border border-teal-100 flex flex-wrap items-center justify-between gap-2 text-xs">
-            <div>
-              <span className="text-teal-700 font-semibold block">
-                Total Paid ({registration.payment_required ? registration.payment_mode : "Free Entry"})
-              </span>
-              <span className="text-lg font-black text-teal-950">
-                ₹{Number(registration.total_amount).toLocaleString("en-IN")}
-              </span>
-              <span className="text-[11px] text-teal-700/80 ml-2">
-                (Fee: ₹{registration.registration_fee} + Contribution: ₹
-                {registration.voluntary_contribution})
-              </span>
-            </div>
-            {registration.utr_last4 && (
-              <div className="px-3 py-1 rounded-lg bg-white border border-teal-200 font-mono font-bold text-teal-900">
-                UTR Ref: ****{registration.utr_last4}
-              </div>
+            {r.payment_required ? (
+              <Badge tone="green" dot>
+                Paid {inr(r.total_amount)}
+              </Badge>
+            ) : (
+              <Badge tone="blue" dot>
+                No fee
+              </Badge>
             )}
           </div>
-        </div>
-      </div>
 
-      {/* Action Buttons */}
-      <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center print:hidden">
-        <button
-          onClick={handlePrint}
-          className="px-6 py-3.5 rounded-2xl bg-white hover:bg-teal-50 border border-teal-200 text-teal-950 font-bold text-sm shadow-sm flex items-center justify-center gap-2 cursor-pointer"
-        >
-          <Printer className="w-4 h-4 text-teal-700" />
-          <span>Print Event Pass</span>
-        </button>
-        <button
-          onClick={onReset}
-          className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-teal-700 to-teal-600 hover:from-teal-800 hover:to-teal-700 text-white font-bold text-sm shadow-lg shadow-teal-800/20 flex items-center justify-center gap-2 cursor-pointer"
-        >
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+            {details.map(([k, v]) => (
+              <div key={k}>
+                <dt className="text-muted">{k}</dt>
+                <dd className="font-medium text-ink">{v}</dd>
+              </div>
+            ))}
+          </dl>
+
+          {r.payment_required && (
+            <div className="text-sm text-muted pt-3 border-t border-line">
+              {r.payment_mode === "ONLINE"
+                ? `Paid by UPI${r.utr_last4 ? `, reference ending ${r.utr_last4}` : ""}.`
+                : "Paid in cash."}
+              {Number(r.voluntary_contribution) > 0 &&
+                ` Includes a contribution of ${inr(r.voluntary_contribution)}. Thank you.`}
+            </div>
+          )}
+        </div>
+      </article>
+
+      <div className="grid grid-cols-2 gap-3 no-print">
+        <Button variant="secondary" onClick={() => window.print()}>
+          <Printer className="w-4 h-4" />
+          Print
+        </Button>
+        <Button onClick={onReset}>
           <RotateCcw className="w-4 h-4" />
-          <span>Register Next Alumnus</span>
-        </button>
+          Next check-in
+        </Button>
       </div>
-    </motion.div>
+      <div className="text-center no-print">
+        <Link href="/checkin" className="text-sm font-medium text-muted hover:text-ink">
+          Back to desk
+        </Link>
+      </div>
+    </div>
   );
 }

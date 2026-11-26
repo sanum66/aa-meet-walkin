@@ -6,9 +6,17 @@ export const ORGANIZATION_NAME =
   "Institute of Road and Transport Technology Alumni Association";
 export const SHORT_ORGANIZATION_NAME = "IRTTAA NuzhAI";
 
+/** First graduating batch of the institute. */
+export const FIRST_BATCH_YEAR = 1988;
+/**
+ * Latest selectable batch: current students graduating in the next few years.
+ * Computed from today's date so the portal keeps working year after year.
+ */
+export const LATEST_BATCH_YEAR = new Date().getFullYear() + 4;
+
 export const BATCH_YEARS = Array.from(
-  { length: 2028 - 1988 },
-  (_, i) => 1988 + i
+  { length: LATEST_BATCH_YEAR - FIRST_BATCH_YEAR + 1 },
+  (_, i) => FIRST_BATCH_YEAR + i
 ).reverse();
 
 export const ASSOCIATION_MEMBERSHIP_TYPES = [
@@ -102,10 +110,10 @@ export const DEFAULT_BATCH_FEE_TIERS = [
   },
   {
     minGraduatingYear: 2021,
-    maxGraduatingYear: 2027,
+    maxGraduatingYear: LATEST_BATCH_YEAR,
     registrationFee: 0,
     displayOrder: 4,
-    label: "2021 - 2027 (Free Entry)",
+    label: `2021 - ${LATEST_BATCH_YEAR} (Free Entry)`,
   },
 ] as const;
 

@@ -11,6 +11,7 @@ import {
   normalizeResponseStatus,
   normalizeStreamEnum,
   normalizeStreamLabel,
+  extractPhoneDigits,
   parseCsvRecords,
 } from "../utils/csv";
 import {
@@ -19,6 +20,32 @@ import {
   EventPreRegistration,
 } from "@/types/database.types";
 
+function parseBatchYear(raw: string | undefined): number {
+  const year = raw ? parseInt(raw.trim(), 10) : NaN;
+  return year >= 1950 && year <= 2100 ? year : NaN;
+}
+
+/** Header sets that identify each CSV template. */
+const MEMBER_HEADERS = ["Login Email Id", "Name", "Batch", "Membership Type"];
+const PRE_REG_HEADERS = ["Name", "Email", "Year", "Status"];
+
+function assertTemplate(
+  records: Record<string, string>[],
+  expected: string[],
+  label: string
+) {
+  if (records.length === 0) {
+    throw new Error(`No data rows found in the ${label} CSV.`);
+  }
+  const headers = Object.keys(records[0]);
+  const missing = expected.filter((h) => !headers.includes(h));
+  if (missing.length > 0) {
+    throw new Error(
+      `This does not look like the ${label} CSV. Missing column(s): ${missing.join(", ")}.`
+    );
+  }
+}
+
 export class ImportService {
   /**
    * Imports `IRTT_AA_Members.csv` into `association_members`.
@@ -26,6 +53,7 @@ export class ImportService {
    */
   async importAssociationMembersCsv(csvText: string): Promise<CsvImportSummary> {
     const rawRecords = parseCsvRecords(csvText);
+    assertTemplate(rawRecords, MEMBER_HEADERS, "IRTT AA Members");
     const errors: string[] = [];
     const dedupMap = new Map<string, Partial<AssociationMember>>();
     const emailOwner = new Map<string, string>();
@@ -54,7 +82,7 @@ export class ImportService {
       }
 
       const yearRaw = row["Batch"] || row["graduating_year"];
-      const parsedYear = yearRaw ? parseInt(yearRaw, 10) : NaN;
+      const parsedYear = parseBatchYear(yearRaw);
 
       // Ensure no duplicate email maps to two different member_login_id keys in same batch
       const prevOwner = emailOwner.get(email);
@@ -118,9 +146,21 @@ export class ImportService {
     }
 
     const rawRecords = parseCsvRecords(csvText);
+    assertTemplate(rawRecords, PRE_REG_HEADERS, "event attendees");
     const errors: string[] = [];
     const dedupMap = new Map<string, Partial<EventPreRegistration>>();
     const nowIso = new Date().toISOString();
+
+    // Link each pre-registration to the association member master (by email,
+    // then by mobile) so membership type and fee are correct at the venue.
+    const members = await memberRepository.getAllMembers();
+    const memberByEmail = new Map(members.map((m) => [normalizeEmail(m.email), m]));
+    const memberByPhone = new Map<string, AssociationMember>();
+    for (const m of members) {
+      const digits = extractPhoneDigits(m.mobile);
+      if (digits.length === 10 && !memberByPhone.has(digits)) memberByPhone.set(digits, m);
+    }
+    let linkedCount = 0;
 
     for (let idx = 0; idx < rawRecords.length; idx++) {
       const row = rawRecords[idx];
@@ -133,24 +173,31 @@ export class ImportService {
       }
 
       const yearRaw = row["Year"] || row["Batch"] || row["graduating_year"];
-      const parsedYear = yearRaw ? parseInt(yearRaw, 10) : NaN;
+      const parsedYear = parseBatchYear(yearRaw);
 
       const familyRaw =
         row["No of Accompanying members (Alumni/Family)"] ||
         row["accompanying_family_count"] ||
         "0";
-      const familyCount = Math.max(0, parseInt(familyRaw, 10) || 0);
+      const familyCount = Math.min(50, Math.max(0, parseInt(familyRaw, 10) || 0));
+
+      const mobile = normalizeMobile(row["Mobile"] || row["mobile"]);
+      const phoneDigits = extractPhoneDigits(mobile);
+      const member =
+        memberByEmail.get(email) ||
+        (phoneDigits.length === 10 ? memberByPhone.get(phoneDigits) : undefined);
+      if (member && !dedupMap.has(email)) linkedCount += 1;
 
       dedupMap.set(email, {
         event_id: eventId,
-        member_login_id: null,
+        member_login_id: member ? member.member_login_id : null,
         full_name: fullName,
         course: normalizeCourseLabel(row["Course"] || row["course"]),
         stream: normalizeStreamLabel(row["Stream"] || row["stream"]),
         graduating_year: !isNaN(parsedYear) ? parsedYear : null,
         email,
-        mobile: normalizeMobile(row["Mobile"] || row["mobile"]),
-        membership_type: "UNREGISTERED_MEMBER",
+        mobile,
+        membership_type: member ? member.membership_type : "UNREGISTERED_MEMBER",
         food_preference: normalizeFoodPreference(
           row["Your Food Preference?"] ||
             row["Food Preference"] ||
@@ -179,6 +226,7 @@ export class ImportService {
       totalRows: rawRecords.length,
       importedCount,
       skippedCount: rawRecords.length - batch.length,
+      linkedMembersCount: linkedCount,
       errors: errors.slice(0, 20),
     };
   }

@@ -2,6 +2,8 @@ import { importService } from "../services/import.service";
 import { memberRepository } from "../repositories/member.repository";
 import { preRegistrationRepository } from "../repositories/preRegistration.repository";
 
+const MAX_CSV_CHARS = 5 * 1024 * 1024;
+
 function formatError(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
 }
@@ -11,6 +13,9 @@ export class ImportController {
     try {
       if (!csvText || !csvText.trim()) {
         throw new Error("CSV content is empty.");
+      }
+      if (csvText.length > MAX_CSV_CHARS) {
+        throw new Error("CSV file is too large (max 5 MB). Split it into smaller files.");
       }
       const summary = await importService.importAssociationMembersCsv(csvText);
       return {
@@ -53,6 +58,9 @@ export class ImportController {
       if (!csvText || !csvText.trim()) {
         throw new Error("CSV content is empty.");
       }
+      if (csvText.length > MAX_CSV_CHARS) {
+        throw new Error("CSV file is too large (max 5 MB). Split it into smaller files.");
+      }
       const summary = await importService.importPreRegistrationsCsv(
         eventId,
         csvText
@@ -60,7 +68,7 @@ export class ImportController {
       return {
         success: true,
         data: summary,
-        message: `Processed ${summary.totalRows} rows for event #${eventId} (${summary.importedCount} saved/updated).`,
+        message: `Processed ${summary.totalRows} rows for event #${eventId}: ${summary.importedCount} saved/updated, ${summary.linkedMembersCount ?? 0} matched to association members.`,
       };
     } catch (err: unknown) {
       return {

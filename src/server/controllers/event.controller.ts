@@ -30,7 +30,10 @@ export class EventController {
         return { success: true, data: null, feeRules: [] };
       }
       const feeRules = await eventService.getFeeConfigurations(event.event_id);
-      return { success: true, data: event, feeRules };
+      // Public endpoint: never expose the desk PIN
+      const { desk_pin: _pin, ...publicEvent } = event;
+      void _pin;
+      return { success: true, data: publicEvent, feeRules };
     } catch (err: unknown) {
       return {
         success: false,

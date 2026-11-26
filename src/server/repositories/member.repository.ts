@@ -1,8 +1,8 @@
-import { supabase, supabaseAdmin } from "../config/supabase";
+import { fetchAllRows, supabaseAdmin, toIlikePattern } from "../config/supabase";
 import { AssociationMember } from "@/types/database.types";
 import { extractPhoneDigits, normalizeEmail } from "../utils/csv";
 
-const client = supabaseAdmin || supabase;
+const client = supabaseAdmin;
 
 export class MemberRepository {
   async listMembers(filters?: {
@@ -16,7 +16,7 @@ export class MemberRepository {
       query = query.eq("membership_type", filters.membershipType);
     }
     if (filters?.search && filters.search.trim()) {
-      const term = `%${filters.search.trim()}%`;
+      const term = toIlikePattern(filters.search);
       query = query.or(
         `full_name.ilike.${term},email.ilike.${term},mobile.ilike.${term},member_login_id.ilike.${term}`
       );
@@ -57,7 +57,7 @@ export class MemberRepository {
       const { data, error } = await client
         .from("association_members")
         .select("*")
-        .ilike("email", normalizeEmail(trimmed))
+        .eq("email", normalizeEmail(trimmed))
         .limit(1)
         .maybeSingle();
 
@@ -85,7 +85,18 @@ export class MemberRepository {
     const exact = (data as AssociationMember[]).find(
       (m) => extractPhoneDigits(m.mobile) === digits
     );
-    return exact || (data[0] as AssociationMember) || null;
+    return exact || null;
+  }
+
+  /** All members (paged), used to link pre-registrations to the member master. */
+  async getAllMembers(): Promise<AssociationMember[]> {
+    return fetchAllRows<AssociationMember>(async (from, to) =>
+      client
+        .from("association_members")
+        .select("*")
+        .order("member_login_id", { ascending: true })
+        .range(from, to)
+    );
   }
 
   async upsertMembers(

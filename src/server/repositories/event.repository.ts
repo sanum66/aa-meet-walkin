@@ -1,7 +1,7 @@
-import { supabase, supabaseAdmin } from "../config/supabase";
+import { supabaseAdmin } from "../config/supabase";
 import { Event, EventFeeConfiguration } from "@/types/database.types";
 
-const client = supabaseAdmin || supabase;
+const client = supabaseAdmin;
 
 export class EventRepository {
   async getAllEvents(): Promise<Event[]> {
@@ -72,6 +72,11 @@ export class EventRepository {
 
     if (error) {
       console.error(`Error updating event ${eventId}:`, error.message);
+      if (/desk_pin/.test(error.message)) {
+        throw new Error(
+          "Desk PINs need a database update. Run data/DataBase_design/003_event_desk_pin.sql in Supabase."
+        );
+      }
       throw new Error(error.message);
     }
     return data as Event;
@@ -132,6 +137,53 @@ export class EventRepository {
 
     if (error) {
       console.error("Error upserting fee configurations:", error.message);
+      throw new Error(error.message);
+    }
+    return (data as EventFeeConfiguration[]) || [];
+  }
+
+  /**
+   * Replaces the complete fee schedule of an event. Upserting alone would keep
+   * stale rows around whenever an organizer edits a batch range.
+   */
+  async replaceFeeConfigurations(
+    eventId: number,
+    configs: Partial<EventFeeConfiguration>[]
+  ): Promise<EventFeeConfiguration[]> {
+    const { data: previous, error: readError } = await client
+      .from("event_fee_configurations")
+      .select("*")
+      .eq("event_id", eventId);
+    if (readError) throw new Error(readError.message);
+
+    const { error: deleteError } = await client
+      .from("event_fee_configurations")
+      .delete()
+      .eq("event_id", eventId);
+    if (deleteError) throw new Error(deleteError.message);
+
+    if (configs.length === 0) return [];
+    const { data, error } = await client
+      .from("event_fee_configurations")
+      .insert(configs.map((c) => ({ ...c, event_id: eventId })))
+      .select();
+
+    if (error) {
+      // Restore the previous schedule so the event never ends up without fees
+      if (previous && previous.length > 0) {
+        await client
+          .from("event_fee_configurations")
+          .insert(
+            (previous as EventFeeConfiguration[]).map(
+              ({ fee_configuration_id: _id, created_at: _c, updated_at: _u, ...rest }) => rest
+            )
+          );
+      }
+      if (error.code === "23505") {
+        throw new Error(
+          "Two fee rules have the same membership type and batch range. Remove the duplicate."
+        );
+      }
       throw new Error(error.message);
     }
     return (data as EventFeeConfiguration[]) || [];

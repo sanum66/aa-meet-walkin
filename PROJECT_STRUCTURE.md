@@ -56,29 +56,37 @@ new_web_app/
 │   │       ├── import.controller.ts            # CSV upload & directory listing orchestration
 │   │       └── registration.controller.ts      # Venue lookup, check-in submit & analytics orchestration
 │   ├── components/
+│   │   ├── ui.tsx                              # Shared UI kit (buttons, fields, cards, tabs, sheet, api helper)
+│   │   ├── PeopleList.tsx                      # Checked-in vs not-arrived lists (desk + organizer)
 │   │   ├── admin/
-│   │   │   ├── AssociationMembersTab.tsx       # `IRTT_AA_Members.csv` importer & members directory
-│   │   │   ├── EventsManagerTab.tsx            # Event creator, active switcher & Fee Rules editor modal
-│   │   │   ├── OverviewAnalyticsTab.tsx        # KPIs, Fee vs Contribution, Online/Cash & batch/stream charts
-│   │   │   ├── PreRegistrationsTab.tsx         # Per-event `event_pre_registrations.csv` importer & list
-│   │   │   └── RegistrationsDirectoryTab.tsx   # Checked-in table, filters, edit modal & CSV export
+│   │   │   ├── CsvUpload.tsx                   # CSV picker + import result
+│   │   │   ├── EditRegistrationSheet.tsx       # Correct a check-in (details, payment) or delete it
+│   │   │   ├── EventForm.tsx                   # Create / edit event details
+│   │   │   ├── EventOverview.tsx               # Event numbers, payments, breakdowns, CSV downloads
+│   │   │   ├── FeeEditor.tsx                   # Batch fees (simple) or per-membership fees (detailed)
+│   │   │   └── SignOutButton.tsx
 │   │   └── registration/
-│   │       ├── PaymentCalculator.tsx           # Auto-filled fee + optional contribution + QR/UTR/Cash UI
-│   │       └── SuccessCard.tsx                 # Printable digital event pass (`IRTTAA-0001`)
+│   │       ├── PaymentCalculator.tsx           # Fee, optional contribution, UPI/cash, UPI reference
+│   │       └── SuccessCard.tsx                 # Printable event pass (`IRTTAA-0001`)
 │   └── app/
 │       ├── globals.css                         # Tailwind CSS v4 theme & `@media print` pass rules
 │       ├── layout.tsx                          # Root HTML layout & metadata
-│       ├── page.tsx                            # Dynamic landing page connected to active event
+│       ├── page.tsx                            # Public page for the published event
 │       ├── register/
-│       │   └── page.tsx                        # Unified Venue Autofill Lookup + Registration + Check-In flow
+│       │   └── page.tsx                        # Check-in: find, confirm details, pay, event pass
 │       ├── checkin/
-│       │   └── page.tsx                        # Volunteer Desk Directory (Awaiting vs Checked-In passes)
+│       │   └── page.tsx                        # Desk volunteers: published event only
 │       ├── admin/
-│       │   ├── page.tsx                        # 5-Tab Admin Portal shell
-│       │   └── login/
-│       │       └── page.tsx                    # Admin & Committee Login screen
+│       │   ├── page.tsx                        # Events list (organizer start page)
+│       │   ├── login/page.tsx                  # Organizer / desk volunteer sign in
+│       │   ├── members/page.tsx                # Association members list
+│       │   └── events/
+│       │       ├── new/page.tsx                # Create event (draft)
+│       │       └── [eventId]/page.tsx          # Event workspace with publish control
+│       ├── middleware.ts (in src/)             # Protects /admin, /checkin and /api/admin
 │       └── api/
-│           ├── events/active/route.ts          # GET active event + fee rules
+│           ├── auth/{login,logout,me}/route.ts # Session cookie sign in / out
+│           ├── events/active/route.ts          # GET published event + fee rules
 │           ├── venue/lookup/route.ts           # POST email/mobile lookup across tables
 │           ├── venue/fee/route.ts              # GET calculated batch fee
 │           ├── register/route.ts               # POST submit venue registration & check-in
@@ -90,6 +98,7 @@ new_web_app/
 │               │   └── [eventId]/
 │               │       ├── route.ts            # PATCH update/activate & DELETE event
 │               │       ├── fees/route.ts       # GET & PUT `event_fee_configurations`
+│               │       ├── export/route.ts     # GET check-ins / attendee list as CSV
 │               │       └── pre-registrations/route.ts # GET & POST `event_pre_registrations.csv`
 │               └── registrations/
 │                   ├── route.ts                # GET filtered venue registrations
@@ -172,22 +181,22 @@ new_web_app/
 
 ## 4. UI Components & Pages (`src/components/` & `src/app/`)
 
-### Modular Admin Components (`src/components/admin/`)
-- [`OverviewAnalyticsTab.tsx`](file:///c:/Users/SundarrajMuthuKumar/Downloads/IRTT_AA/aa-meet-walkin/new_web_app/src/components/admin/OverviewAnalyticsTab.tsx): Displays KPIs (Venue Check-Ins, Total Collected, Registration Fees, Voluntary Contributions), Online vs Cash split, Pre-Registered vs On-Spot, Catering split, Batch/Stream charts, and Recent Check-Ins table.
-- [`RegistrationsDirectoryTab.tsx`](file:///c:/Users/SundarrajMuthuKumar/Downloads/IRTT_AA/aa-meet-walkin/new_web_app/src/components/admin/RegistrationsDirectoryTab.tsx): Multi-filter directory (`graduatingYear`, `stream`, `registrationSource`, `paymentMode`), inline edit modal, delete action, and full CSV export.
-- [`EventsManagerTab.tsx`](file:///c:/Users/SundarrajMuthuKumar/Downloads/IRTT_AA/aa-meet-walkin/new_web_app/src/components/admin/EventsManagerTab.tsx): Create/delete events, switch active event, and customize per-event batch fees in the **Fee Rules** modal.
-- [`PreRegistrationsTab.tsx`](file:///c:/Users/SundarrajMuthuKumar/Downloads/IRTT_AA/aa-meet-walkin/new_web_app/src/components/admin/PreRegistrationsTab.tsx): Select target event, upload `event_pre_registrations.csv`, and search imported records.
-- [`AssociationMembersTab.tsx`](file:///c:/Users/SundarrajMuthuKumar/Downloads/IRTT_AA/aa-meet-walkin/new_web_app/src/components/admin/AssociationMembersTab.tsx): Upload `IRTT_AA_Members.csv` (upsert) and browse recognized members by tier.
+All pages use the shared kit in `src/components/ui.tsx`, so colours, spacing and form sizes are defined once. Forms use 16px text (no zoom on iPhone) and 44px touch targets.
 
-### Venue Registration Components (`src/components/registration/`)
-- [`PaymentCalculator.tsx`](file:///c:/Users/SundarrajMuthuKumar/Downloads/IRTT_AA/aa-meet-walkin/new_web_app/src/components/registration/PaymentCalculator.tsx): Displays system-locked batch registration fee, optional voluntary contribution input, live total, `"Kindly do the payment using QR code on the table then Submit it."` banner, `ONLINE` (required 4-digit `utr_last4`) / `CASH` toggle, or `Free Entry` indicator.
-- [`SuccessCard.tsx`](file:///c:/Users/SundarrajMuthuKumar/Downloads/IRTT_AA/aa-meet-walkin/new_web_app/src/components/registration/SuccessCard.tsx): Official printable attendee pass (`IRTTAA-0001`) showing badge details, payment breakdown, and UTR reference.
+### Pages
+| Route | Who | What |
+| :--- | :--- | :--- |
+| `/` | Public | The published event's details (no check-in) |
+| `/register` | Desk PIN / Organizer | Find (attendee list, then alumni list, then add new) → details → review → pass. `?q=` pre-fills the search. |
+| `/checkin` | Desk PIN | Published event only: checked in vs not arrived, New check-in |
+| `/admin/login` | Staff | Organizer (email + password) or desk volunteer (PIN) |
+| `/admin` | Organizer | Events list (Published / Upcoming / Past), New event, Members list |
+| `/admin/events/new` | Organizer | Create an event (saved as a draft) |
+| `/admin/events/[id]` | Organizer | Publish/Unpublish and tabs: Overview, People, Attendees, Fees, Settings |
+| `/admin/members` | Organizer | Upload and search the association members list |
 
-### App Router Pages (`src/app/`)
-- [`page.tsx`](file:///c:/Users/SundarrajMuthuKumar/Downloads/IRTT_AA/aa-meet-walkin/new_web_app/src/app/page.tsx) (`/`): Landing portal dynamically showing the active event (`event_name`, `chapter_name`, `event_date`, `event_time`, `venue`).
-- [`register/page.tsx`](file:///c:/Users/SundarrajMuthuKumar/Downloads/IRTT_AA/aa-meet-walkin/new_web_app/src/app/register/page.tsx) (`/register`): Unified venue registration & check-in portal supporting `?q=` deep linking from the volunteer desk.
-- [`checkin/page.tsx`](file:///c:/Users/SundarrajMuthuKumar/Downloads/IRTT_AA/aa-meet-walkin/new_web_app/src/app/checkin/page.tsx) (`/checkin`): Volunteer desk directory comparing **Awaiting Check-In** pre-registrations vs **Checked In** passes.
-- [`admin/page.tsx`](file:///c:/Users/SundarrajMuthuKumar/Downloads/IRTT_AA/aa-meet-walkin/new_web_app/src/app/admin/page.tsx) (`/admin`) & [`admin/login/page.tsx`](file:///c:/Users/SundarrajMuthuKumar/Downloads/IRTT_AA/aa-meet-walkin/new_web_app/src/app/admin/login/page.tsx) (`/admin/login`): Protected 5-tab management portal.
+### Publishing
+Only one event is published at a time (`events.is_active`). The public pages, check-in API and desk volunteers only work with the published event; check-in to a draft event is rejected on the server.
 
 ---
 

@@ -91,7 +91,14 @@ export function normalizeMobile(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const compact = raw.replace(/\s+/g, "").trim();
   if (!compact) return null;
-  return compact;
+  const digits = compact.replace(/\D/g, "");
+  // Indian numbers in any common format -> "+91-XXXXXXXXXX"
+  if (digits.length === 10 && /^[6-9]/.test(digits)) return `+91-${digits}`;
+  if (digits.length === 11 && digits.startsWith("0") && /^[6-9]/.test(digits.slice(1)))
+    return `+91-${digits.slice(1)}`;
+  if (digits.length === 12 && digits.startsWith("91")) return `+91-${digits.slice(2)}`;
+  if (digits.length === 13 && digits.startsWith("910")) return `+91-${digits.slice(3)}`;
+  return compact.slice(0, 20);
 }
 
 /**

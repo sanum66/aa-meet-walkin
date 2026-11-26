@@ -1,8 +1,8 @@
-import { supabase, supabaseAdmin } from "../config/supabase";
+import { fetchAllRows, supabaseAdmin, toIlikePattern } from "../config/supabase";
 import { EventRegistration } from "@/types/database.types";
 import { extractPhoneDigits, normalizeEmail } from "../utils/csv";
 
-const client = supabaseAdmin || supabase;
+const client = supabaseAdmin;
 
 export interface RegistrationFilters {
   eventId?: number;
@@ -18,42 +18,61 @@ export class RegistrationRepository {
   async listRegistrations(
     filters: RegistrationFilters = {}
   ): Promise<EventRegistration[]> {
-    let query = client.from("event_registrations").select("*");
+    const build = () => {
+      let query = client.from("event_registrations").select("*");
 
-    if (filters.eventId) {
-      query = query.eq("event_id", filters.eventId);
-    }
-    if (filters.graduatingYear) {
-      query = query.eq("graduating_year", filters.graduatingYear);
-    }
-    if (filters.stream && filters.stream !== "All") {
-      query = query.eq("stream", filters.stream);
-    }
-    if (filters.registrationSource && filters.registrationSource !== "All") {
-      query = query.eq("registration_source", filters.registrationSource);
-    }
-    if (filters.paymentMode && filters.paymentMode !== "All") {
-      query = query.eq("payment_mode", filters.paymentMode);
-    }
-    if (filters.search && filters.search.trim()) {
-      const term = `%${filters.search.trim()}%`;
-      query = query.or(
-        `full_name.ilike.${term},email.ilike.${term},mobile.ilike.${term},utr_last4.ilike.${term}`
+      if (filters.eventId) {
+        query = query.eq("event_id", filters.eventId);
+      }
+      if (filters.graduatingYear) {
+        query = query.eq("graduating_year", filters.graduatingYear);
+      }
+      if (filters.stream && filters.stream !== "All") {
+        query = query.eq("stream", filters.stream);
+      }
+      if (filters.registrationSource && filters.registrationSource !== "All") {
+        query = query.eq("registration_source", filters.registrationSource);
+      }
+      if (filters.paymentMode && filters.paymentMode !== "All") {
+        query = query.eq("payment_mode", filters.paymentMode);
+      }
+      if (filters.search && filters.search.trim()) {
+        const term = toIlikePattern(filters.search);
+        query = query.or(
+          `full_name.ilike.${term},email.ilike.${term},mobile.ilike.${term},utr_last4.ilike.${term}`
+        );
+      }
+      return query
+        .order("checked_in_at", { ascending: false })
+        .order("registration_id", { ascending: false });
+    };
+
+    try {
+      if (filters.limit) {
+        const { data, error } = await build().limit(filters.limit);
+        if (error) throw new Error(error.message);
+        return (data as EventRegistration[]) || [];
+      }
+      return await fetchAllRows<EventRegistration>((from, to) =>
+        build().range(from, to)
       );
+    } catch (err) {
+      console.error(
+        "Error listing event registrations:",
+        err instanceof Error ? err.message : err
+      );
+      throw new Error("Could not load registrations. Please try again.");
     }
+  }
 
-    query = query.order("checked_in_at", { ascending: false });
-
-    if (filters.limit) {
-      query = query.limit(filters.limit);
-    }
-
-    const { data, error } = await query;
-    if (error) {
-      console.error("Error listing event registrations:", error.message);
-      return [];
-    }
-    return (data as EventRegistration[]) || [];
+  async findById(registrationId: number): Promise<EventRegistration | null> {
+    const { data, error } = await client
+      .from("event_registrations")
+      .select("*")
+      .eq("registration_id", registrationId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return (data as EventRegistration) || null;
   }
 
   async findByEventAndEmailOrMobile(
@@ -68,7 +87,7 @@ export class RegistrationRepository {
         .from("event_registrations")
         .select("*")
         .eq("event_id", eventId)
-        .ilike("email", normalizeEmail(trimmed))
+        .eq("email", normalizeEmail(trimmed))
         .limit(1)
         .maybeSingle();
 
@@ -98,7 +117,7 @@ export class RegistrationRepository {
     const exact = (data as EventRegistration[]).find(
       (r) => extractPhoneDigits(r.mobile) === digits
     );
-    return exact || (data[0] as EventRegistration) || null;
+    return exact || null;
   }
 
   async findByEventAndEmail(
@@ -109,7 +128,7 @@ export class RegistrationRepository {
       .from("event_registrations")
       .select("*")
       .eq("event_id", eventId)
-      .ilike("email", normalizeEmail(email))
+      .eq("email", normalizeEmail(email))
       .limit(1)
       .maybeSingle();
 
@@ -131,6 +150,9 @@ export class RegistrationRepository {
 
     if (error) {
       console.error("Error creating registration:", error.message);
+      if (error.code === "23505") {
+        throw new Error("This email is already checked in for this event.");
+      }
       throw new Error(error.message);
     }
     return data as EventRegistration;
@@ -149,6 +171,9 @@ export class RegistrationRepository {
 
     if (error) {
       console.error(`Error updating registration ${registrationId}:`, error.message);
+      if (error.code === "23505") {
+        throw new Error("Another check-in for this event already uses that email.");
+      }
       throw new Error(error.message);
     }
     return data as EventRegistration;

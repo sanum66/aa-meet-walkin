@@ -1,5 +1,7 @@
 import { z } from "zod";
 import {
+  FIRST_BATCH_YEAR,
+  LATEST_BATCH_YEAR,
   PAYMENT_MODES,
   REGISTRATION_MEMBERSHIP_TYPES,
   REGISTRATION_SOURCES,
@@ -23,8 +25,8 @@ export const eventRegistrationSchema = z.object({
   graduatingYear: z.coerce
     .number()
     .int()
-    .min(1980, "Graduating year must be 1980 or later")
-    .max(2035, "Graduating year must be 2035 or earlier"),
+    .min(FIRST_BATCH_YEAR, `Graduating year must be ${FIRST_BATCH_YEAR} or later`)
+    .max(LATEST_BATCH_YEAR, `Graduating year must be ${LATEST_BATCH_YEAR} or earlier`),
   membershipTypeUsed: z
     .enum(REGISTRATION_MEMBERSHIP_TYPES)
     .default("UNREGISTERED_MEMBER"),
@@ -46,7 +48,13 @@ export const adminUpdateRegistrationSchema = z.object({
   mobile: z.string().trim().max(20).optional().nullable(),
   course: z.string().trim().optional().nullable(),
   stream: z.string().trim().optional().nullable(),
-  graduatingYear: z.coerce.number().int().min(1980).max(2035).optional().nullable(),
+  graduatingYear: z.coerce
+    .number()
+    .int()
+    .min(FIRST_BATCH_YEAR)
+    .max(LATEST_BATCH_YEAR)
+    .optional()
+    .nullable(),
   foodPreference: z.string().trim().optional().nullable(),
   accompanyingAlumniCount: z.coerce.number().int().min(0).optional(),
   accompanyingFamilyCount: z.coerce.number().int().min(0).optional(),
@@ -54,7 +62,13 @@ export const adminUpdateRegistrationSchema = z.object({
   voluntaryContribution: z.coerce.number().min(0).optional(),
   paymentMode: z.enum(PAYMENT_MODES).optional().nullable(),
   paymentConfirmed: z.boolean().optional(),
-  utrLast4: z.string().trim().max(4).optional().nullable(),
+  utrLast4: z
+    .string()
+    .trim()
+    .regex(/^[0-9]{4}$/, "UTR reference must be exactly 4 digits")
+    .optional()
+    .nullable()
+    .or(z.literal("")),
 });
 
 export type AdminUpdateRegistrationInput = z.infer<

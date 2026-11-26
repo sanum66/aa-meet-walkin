@@ -12,12 +12,9 @@ export class EventService {
     return eventRepository.getAllEvents();
   }
 
+  /** The published event (open for check-in), or null when none is published. */
   async getActiveEvent(): Promise<Event | null> {
-    const active = await eventRepository.getActiveEvent();
-    if (active) return active;
-
-    const all = await eventRepository.getAllEvents();
-    return all.length > 0 ? all[0] : null;
+    return eventRepository.getActiveEvent();
   }
 
   async getEventById(eventId: number): Promise<Event | null> {
@@ -86,6 +83,7 @@ export class EventService {
     if (input.description !== undefined)
       updates.description = input.description || null;
     if (input.isActive !== undefined) updates.is_active = input.isActive;
+    if (input.deskPin !== undefined) updates.desk_pin = input.deskPin || null;
 
     return eventRepository.updateEvent(eventId, updates);
   }
@@ -112,7 +110,7 @@ export class EventService {
       is_active: r.isActive,
     }));
 
-    return eventRepository.upsertFeeConfigurations(payload);
+    return eventRepository.replaceFeeConfigurations(eventId, payload);
   }
 
   /**
@@ -140,14 +138,8 @@ export class EventService {
         return Number(exactMatch.registration_fee) || 0;
       }
 
-      const yearMatch = activeRules.find(
-        (r) =>
-          graduatingYear >= r.min_graduating_year &&
-          graduatingYear <= r.max_graduating_year
-      );
-      if (yearMatch) {
-        return Number(yearMatch.registration_fee) || 0;
-      }
+      // A rule only applies to the member types it was set for; anything not
+      // covered falls through to the standard schedule below.
     }
 
     // Fallback to default batch schedule

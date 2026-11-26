@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { deskEventGuard, guardStatus } from "@/server/auth/request";
 import { eventController } from "@/server/controllers/event.controller";
 import { RegistrationMembershipType } from "@/server/constants";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  const denied = await deskEventGuard(req);
+  if (denied) {
+    return NextResponse.json({ success: false, error: denied }, { status: guardStatus(denied) });
+  }
+
   const { searchParams } = new URL(req.url);
   const eventId = Number(searchParams.get("eventId"));
   const graduatingYear = Number(searchParams.get("graduatingYear"));

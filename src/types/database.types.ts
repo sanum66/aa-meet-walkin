@@ -36,6 +36,8 @@ export interface Event {
   event_time: string | null;
   description: string | null;
   is_active: boolean;
+  /** Desk volunteer PIN (organizers only; undefined until migration 003 runs) */
+  desk_pin?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -150,5 +152,7 @@ export interface CsvImportSummary {
   totalRows: number;
   importedCount: number;
   skippedCount: number;
+  /** Pre-registrations matched to an association member during import */
+  linkedMembersCount?: number;
   errors: string[];
 }

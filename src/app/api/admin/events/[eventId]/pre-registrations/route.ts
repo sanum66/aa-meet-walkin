@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { importController } from "@/server/controllers/import.controller";
+import { deskEventGuard, guardStatus } from "@/server/auth/request";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,11 @@ export async function GET(
       { success: false, error: "Invalid event ID" },
       { status: 400 }
     );
+  }
+
+  const denied = await deskEventGuard(req, numericId);
+  if (denied) {
+    return NextResponse.json({ success: false, error: denied }, { status: guardStatus(denied) });
   }
 
   const { searchParams } = new URL(req.url);

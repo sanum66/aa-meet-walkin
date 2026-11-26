@@ -1,8 +1,8 @@
-import { supabase, supabaseAdmin } from "../config/supabase";
+import { fetchAllRows, supabaseAdmin, toIlikePattern } from "../config/supabase";
 import { EventPreRegistration } from "@/types/database.types";
 import { extractPhoneDigits, normalizeEmail } from "../utils/csv";
 
-const client = supabaseAdmin || supabase;
+const client = supabaseAdmin;
 
 export class PreRegistrationRepository {
   async listByEvent(
@@ -18,7 +18,7 @@ export class PreRegistrationRepository {
       query = query.eq("response_status", filters.responseStatus);
     }
     if (filters?.search && filters.search.trim()) {
-      const term = `%${filters.search.trim()}%`;
+      const term = toIlikePattern(filters.search);
       query = query.or(
         `full_name.ilike.${term},email.ilike.${term},mobile.ilike.${term}`
       );
@@ -35,6 +35,17 @@ export class PreRegistrationRepository {
       return [];
     }
     return (data as EventPreRegistration[]) || [];
+  }
+
+  async getAllByEvent(eventId: number): Promise<EventPreRegistration[]> {
+    return fetchAllRows<EventPreRegistration>(async (from, to) =>
+      client
+        .from("event_pre_registrations")
+        .select("*")
+        .eq("event_id", eventId)
+        .order("full_name", { ascending: true })
+        .range(from, to)
+    );
   }
 
   async getCountByEvent(eventId: number): Promise<number> {
@@ -62,7 +73,7 @@ export class PreRegistrationRepository {
         .from("event_pre_registrations")
         .select("*")
         .eq("event_id", eventId)
-        .ilike("email", normalizeEmail(trimmed))
+        .eq("email", normalizeEmail(trimmed))
         .limit(1)
         .maybeSingle();
 
@@ -92,7 +103,7 @@ export class PreRegistrationRepository {
     const exact = (data as EventPreRegistration[]).find(
       (r) => extractPhoneDigits(r.mobile) === digits
     );
-    return exact || (data[0] as EventPreRegistration) || null;
+    return exact || null;
   }
 
   async upsertPreRegistrations(

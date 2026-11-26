@@ -12,14 +12,20 @@ export const eventSchema = z.object({
   eventTime: z.string().trim().optional().nullable(),
   description: z.string().trim().optional().nullable(),
   isActive: z.boolean().default(true),
+  deskPin: z
+    .string()
+    .trim()
+    .regex(/^[0-9]{4,8}$/, "Desk PIN must be 4 to 8 digits")
+    .optional()
+    .nullable(),
 });
 
 export type EventInput = z.infer<typeof eventSchema>;
 
 export const feeConfigurationSchema = z
   .object({
-    minGraduatingYear: z.coerce.number().int().min(1980).max(2035),
-    maxGraduatingYear: z.coerce.number().int().min(1980).max(2035),
+    minGraduatingYear: z.coerce.number().int().min(1950).max(2100),
+    maxGraduatingYear: z.coerce.number().int().min(1950).max(2100),
     membershipType: z.enum(REGISTRATION_MEMBERSHIP_TYPES),
     registrationFee: z.coerce.number().min(0),
     displayOrder: z.coerce.number().int().default(0),

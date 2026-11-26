@@ -63,7 +63,7 @@ export class RegistrationController {
         registrationSource: params.registrationSource,
         paymentMode: params.paymentMode,
         search: params.search,
-        limit: 500,
+        limit: 3000,
       });
       return { success: true, data };
     } catch (err: unknown) {

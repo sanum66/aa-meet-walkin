@@ -29,14 +29,12 @@ export class RegistrationService {
     query: string,
     providedEventId?: number
   ): Promise<VenueLookupResult> {
-    let eventId = providedEventId;
-    if (!eventId) {
-      const activeEvent = await eventService.getActiveEvent();
-      if (!activeEvent) {
-        throw new Error("No active event found.");
-      }
-      eventId = activeEvent.event_id;
+    // Check-in is only possible for the published event
+    const activeEvent = await eventService.getActiveEvent();
+    if (!activeEvent || (providedEventId && providedEventId !== activeEvent.event_id)) {
+      throw new Error("This event is not open for check-in.");
     }
+    const eventId = activeEvent.event_id;
 
     // 1. Check if already registered at venue for this event
     const existingReg = await registrationRepository.findByEventAndEmailOrMobile(
@@ -49,7 +47,9 @@ export class RegistrationService {
         source:
           existingReg.registration_source === "PRE_REGISTERED"
             ? "PRE_REGISTERED"
-            : "ASSOCIATION_MEMBER",
+            : existingReg.recognized_member
+              ? "ASSOCIATION_MEMBER"
+              : "NONE",
         alreadyRegistered: true,
         existingRegistration: existingReg,
         computedRegistrationFee: Number(existingReg.registration_fee) || 0,
@@ -63,10 +63,29 @@ export class RegistrationService {
       query
     );
     if (preReg) {
+      // Members may have been imported after the pre-registration list, so
+      // re-check the member master to apply the correct membership & fee.
+      let linkedMember = null;
+      if (!preReg.member_login_id || preReg.membership_type === "UNREGISTERED_MEMBER") {
+        linkedMember =
+          (await memberRepository.findByEmailOrMobile(preReg.email)) ||
+          (preReg.mobile
+            ? await memberRepository.findByEmailOrMobile(preReg.mobile)
+            : null);
+      }
+      const membershipType = linkedMember
+        ? linkedMember.membership_type
+        : preReg.membership_type;
+      const memberLoginId = linkedMember
+        ? linkedMember.member_login_id
+        : preReg.member_login_id;
+      const graduatingYear =
+        preReg.graduating_year ?? linkedMember?.graduating_year ?? null;
+
       const fee = await eventService.calculateRegistrationFee(
         eventId,
-        preReg.graduating_year,
-        preReg.membership_type
+        graduatingYear,
+        membershipType
       );
 
       return {
@@ -76,15 +95,15 @@ export class RegistrationService {
         existingRegistration: null,
         computedRegistrationFee: fee,
         prefill: {
-          member_login_id: preReg.member_login_id,
+          member_login_id: memberLoginId,
           full_name: preReg.full_name,
           email: preReg.email,
-          mobile: preReg.mobile || "",
-          course: preReg.course || "BE",
-          stream: preReg.stream || "CSE",
-          graduating_year: preReg.graduating_year,
-          membership_type_used: preReg.membership_type,
-          recognized_member: Boolean(preReg.member_login_id),
+          mobile: preReg.mobile || linkedMember?.mobile || "",
+          course: preReg.course || linkedMember?.course || "BE",
+          stream: preReg.stream || linkedMember?.stream || "CSE",
+          graduating_year: graduatingYear,
+          membership_type_used: membershipType,
+          recognized_member: Boolean(memberLoginId),
           food_preference: preReg.food_preference || "Vegetarian",
           accompanying_alumni_count: preReg.accompanying_alumni_count || 0,
           accompanying_family_count: preReg.accompanying_family_count || 0,
@@ -153,10 +172,32 @@ export class RegistrationService {
       );
     }
 
+    const event = await eventService.getEventById(input.eventId);
+    if (!event) {
+      throw new Error("This event no longer exists. Please refresh the page.");
+    }
+    if (!event.is_active) {
+      throw new Error("This event is not open for check-in.");
+    }
+
+    // Never trust a membership tier sent by the browser: it decides the fee.
+    // Recognise members from the master list; everyone else is unregistered.
+    const member =
+      (await memberRepository.findByEmailOrMobile(cleanEmail)) ||
+      (input.mobile ? await memberRepository.findByEmailOrMobile(input.mobile) : null);
+    const membershipTypeUsed = member ? member.membership_type : "UNREGISTERED_MEMBER";
+    const memberLoginId = member ? member.member_login_id : input.memberLoginId || null;
+
+    const preReg = await preRegistrationRepository.findByEventAndEmailOrMobile(
+      input.eventId,
+      cleanEmail
+    );
+    const registrationSource = preReg ? "PRE_REGISTERED" : "ON_SPOT";
+
     const registrationFee = await eventService.calculateRegistrationFee(
       input.eventId,
       input.graduatingYear,
-      input.membershipTypeUsed
+      membershipTypeUsed
     );
     const voluntaryContribution = Math.max(
       0,
@@ -190,16 +231,16 @@ export class RegistrationService {
 
     return registrationRepository.insertRegistration({
       event_id: input.eventId,
-      member_login_id: input.memberLoginId || null,
+      member_login_id: memberLoginId,
       full_name: input.fullName.trim(),
       email: cleanEmail,
       mobile: normalizeMobile(input.mobile),
       course: input.course || null,
       stream: input.stream || null,
       graduating_year: input.graduatingYear,
-      membership_type_used: input.membershipTypeUsed,
-      registration_source: input.registrationSource,
-      recognized_member: input.recognizedMember,
+      membership_type_used: membershipTypeUsed,
+      registration_source: registrationSource,
+      recognized_member: Boolean(member),
       food_preference: input.foodPreference || "Vegetarian",
       accompanying_alumni_count: Number(input.accompanyingAlumniCount) || 0,
       accompanying_family_count: Number(input.accompanyingFamilyCount) || 0,
@@ -225,6 +266,11 @@ export class RegistrationService {
     registrationId: number,
     input: AdminUpdateRegistrationInput
   ): Promise<EventRegistration> {
+    const existing = await registrationRepository.findById(registrationId);
+    if (!existing) {
+      throw new Error("Registration not found. It may have been deleted.");
+    }
+
     const updates: Partial<EventRegistration> = {};
     if (input.fullName !== undefined) updates.full_name = input.fullName;
     if (input.email !== undefined) updates.email = normalizeEmail(input.email);
@@ -244,8 +290,11 @@ export class RegistrationService {
       input.registrationFee !== undefined ||
       input.voluntaryContribution !== undefined
     ) {
-      const fee = Number(input.registrationFee ?? 0);
-      const contrib = Number(input.voluntaryContribution ?? 0);
+      // Only change the amount that was edited; keep the other one as stored
+      const fee = Number(input.registrationFee ?? existing.registration_fee ?? 0);
+      const contrib = Number(
+        input.voluntaryContribution ?? existing.voluntary_contribution ?? 0
+      );
       updates.registration_fee = fee;
       updates.voluntary_contribution = contrib;
       updates.total_amount = fee + contrib;
@@ -253,9 +302,22 @@ export class RegistrationService {
     }
 
     if (input.paymentMode !== undefined) updates.payment_mode = input.paymentMode;
-    if (input.paymentConfirmed !== undefined)
+    if (input.paymentConfirmed !== undefined) {
       updates.payment_confirmed = input.paymentConfirmed;
-    if (input.utrLast4 !== undefined) updates.utr_last4 = input.utrLast4;
+      if (input.paymentConfirmed && !existing.paid_at) {
+        updates.paid_at = new Date().toISOString();
+      }
+    }
+    if (input.utrLast4 !== undefined) updates.utr_last4 = input.utrLast4 || null;
+
+    const finalMode =
+      updates.payment_mode !== undefined ? updates.payment_mode : existing.payment_mode;
+    const finalUtr =
+      updates.utr_last4 !== undefined ? updates.utr_last4 : existing.utr_last4;
+    if (finalMode === "CASH") updates.utr_last4 = null;
+    if (finalMode === "ONLINE" && finalUtr && !/^[0-9]{4}$/.test(finalUtr)) {
+      throw new Error("UTR reference must be exactly 4 digits.");
+    }
 
     return registrationRepository.updateRegistration(registrationId, updates);
   }
